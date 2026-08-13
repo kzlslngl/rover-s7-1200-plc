@@ -1,0 +1,10 @@
+DATA_BLOCK "DB_EspGatewayRx"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Registers : Array[0..63] of Word;
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK

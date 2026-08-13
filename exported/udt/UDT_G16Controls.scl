@@ -1,0 +1,21 @@
+TYPE "UDT_G16Controls"
+VERSION : 0.1
+   STRUCT
+      Valid : Bool;
+      JoyX2 : Real;
+      JoyY2 : Real;
+      JoyY1 : Real;
+      JoyX1 : Real;
+      Sw1Position : Int; // -1 low, 0 center, +1 high
+      Sw2Position : Int;
+      Sw3Position : Int;
+      Sw4Position : Int;
+      ButtonCode : Int; // 0 none/unknown, 1=A ... 6=F
+      ModHigh : Bool;
+      Aux1 : Real; // 0.0 .. 1.0
+      Aux2 : Real; // 0.0 .. 1.0
+      JoyX3 : Real;
+      JoyY3 : Real;
+      RangeErrorMask : Word;
+   END_STRUCT;
+END_TYPE

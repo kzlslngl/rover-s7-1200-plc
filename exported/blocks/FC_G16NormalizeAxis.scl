@@ -1,0 +1,31 @@
+FUNCTION "FC_G16NormalizeAxis" : Real
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Raw : UInt;
+      Minimum : UInt;
+      Neutral : UInt;
+      Maximum : UInt;
+      Deadband : UInt;
+   END_VAR
+   VAR_TEMP
+      LowerNeutral : UInt;
+      UpperNeutral : UInt;
+   END_VAR
+
+BEGIN
+   #LowerNeutral := #Neutral - #Deadband;
+   #UpperNeutral := #Neutral + #Deadband;
+
+   IF (#Raw >= #LowerNeutral) AND (#Raw <= #UpperNeutral) THEN
+      #FC_G16NormalizeAxis := 0.0;
+   ELSIF #Raw < #LowerNeutral THEN
+      #FC_G16NormalizeAxis := -1.0 *
+         UINT_TO_REAL(#LowerNeutral - #Raw) /
+         UINT_TO_REAL(#LowerNeutral - #Minimum);
+   ELSE
+      #FC_G16NormalizeAxis :=
+         UINT_TO_REAL(#Raw - #UpperNeutral) /
+         UINT_TO_REAL(#Maximum - #UpperNeutral);
+   END_IF;
+END_FUNCTION

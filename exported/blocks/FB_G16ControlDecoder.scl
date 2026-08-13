@@ -1,0 +1,140 @@
+FUNCTION_BLOCK "FB_G16ControlDecoder"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      DataValid : Bool;
+      ChannelRaw : Array[0..15] of UInt;
+      AxisDeadband : UInt;
+      SwitchTolerance : UInt;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+   END_VAR
+
+BEGIN
+   "DB_G16Controls".Data.Valid := FALSE;
+   "DB_G16Controls".Data.RangeErrorMask := 16#0000;
+
+   // Reject any known analog channel outside its measured physical endpoints.
+   FOR #Index := 0 TO 3 DO
+      IF (#ChannelRaw[#Index] < 282) OR (#ChannelRaw[#Index] > 1722) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR
+            SHL(IN := WORD#16#0001, N := INT_TO_UINT(#Index));
+      END_IF;
+   END_FOR;
+   FOR #Index := 10 TO 13 DO
+      IF (#ChannelRaw[#Index] < 282) OR (#ChannelRaw[#Index] > 1722) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR
+            SHL(IN := WORD#16#0001, N := INT_TO_UINT(#Index));
+      END_IF;
+   END_FOR;
+
+   IF #DataValid AND ("DB_G16Controls".Data.RangeErrorMask = 0) THEN
+      "DB_G16Controls".Data.JoyX2 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[0], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+      "DB_G16Controls".Data.JoyY2 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[1], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+      "DB_G16Controls".Data.JoyY1 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[2], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+      "DB_G16Controls".Data.JoyX1 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[3], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+      "DB_G16Controls".Data.JoyX3 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[12], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+      "DB_G16Controls".Data.JoyY3 := "FC_G16NormalizeAxis"(
+         Raw := #ChannelRaw[13], Minimum := 282, Neutral := 1002,
+         Maximum := 1722, Deadband := #AxisDeadband);
+
+      "DB_G16Controls".Data.Aux1 :=
+         UINT_TO_REAL(#ChannelRaw[10] - 282) / 1440.0;
+      "DB_G16Controls".Data.Aux2 :=
+         UINT_TO_REAL(#ChannelRaw[11] - 282) / 1440.0;
+
+      "DB_G16Controls".Data.Sw1Position := 0;
+      IF #ChannelRaw[4] <= (282 + #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw1Position := -1;
+      ELSIF #ChannelRaw[4] >= (1722 - #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw1Position := 1;
+      ELSIF (#ChannelRaw[4] < (1002 - #SwitchTolerance)) OR
+         (#ChannelRaw[4] > (1002 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0010;
+      END_IF;
+
+      "DB_G16Controls".Data.Sw2Position := 0;
+      IF #ChannelRaw[5] <= (282 + #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw2Position := -1;
+      ELSIF #ChannelRaw[5] >= (1722 - #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw2Position := 1;
+      ELSIF (#ChannelRaw[5] < (1002 - #SwitchTolerance)) OR
+         (#ChannelRaw[5] > (1002 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0020;
+      END_IF;
+
+      "DB_G16Controls".Data.Sw3Position := 0;
+      IF #ChannelRaw[6] <= (282 + #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw3Position := -1;
+      ELSIF #ChannelRaw[6] >= (1722 - #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw3Position := 1;
+      ELSIF (#ChannelRaw[6] < (1002 - #SwitchTolerance)) OR
+         (#ChannelRaw[6] > (1002 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0040;
+      END_IF;
+
+      "DB_G16Controls".Data.Sw4Position := 0;
+      IF #ChannelRaw[7] <= (282 + #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw4Position := -1;
+      ELSIF #ChannelRaw[7] >= (1722 - #SwitchTolerance) THEN
+         "DB_G16Controls".Data.Sw4Position := 1;
+      ELSIF (#ChannelRaw[7] < (1002 - #SwitchTolerance)) OR
+         (#ChannelRaw[7] > (1002 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0080;
+      END_IF;
+
+      "DB_G16Controls".Data.ButtonCode := 0;
+      IF (#ChannelRaw[8] >= (426 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (426 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 1;
+      ELSIF (#ChannelRaw[8] >= (685 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (685 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 2;
+      ELSIF (#ChannelRaw[8] >= (858 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (858 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 3;
+      ELSIF (#ChannelRaw[8] >= (1074 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (1074 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 4;
+      ELSIF (#ChannelRaw[8] >= (1290 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (1290 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 5;
+      ELSIF (#ChannelRaw[8] >= (1578 - #SwitchTolerance)) AND
+         (#ChannelRaw[8] <= (1578 + #SwitchTolerance)) THEN
+         "DB_G16Controls".Data.ButtonCode := 6;
+      END_IF;
+      IF "DB_G16Controls".Data.ButtonCode = 0 THEN
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0100;
+      END_IF;
+
+      IF #ChannelRaw[9] <= (282 + #SwitchTolerance) THEN
+         "DB_G16Controls".Data.ModHigh := FALSE;
+      ELSIF #ChannelRaw[9] >= (1722 - #SwitchTolerance) THEN
+         "DB_G16Controls".Data.ModHigh := TRUE;
+      ELSE
+         "DB_G16Controls".Data.RangeErrorMask :=
+            "DB_G16Controls".Data.RangeErrorMask OR 16#0200;
+      END_IF;
+
+      "DB_G16Controls".Data.Valid :=
+         "DB_G16Controls".Data.RangeErrorMask = 0;
+   END_IF;
+END_FUNCTION_BLOCK

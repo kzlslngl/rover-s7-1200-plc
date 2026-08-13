@@ -1,0 +1,184 @@
+FUNCTION_BLOCK "FB_G16SnapshotValidator"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      PollDone : Bool;
+      PollError : Bool;
+      Raw : Array[0..63] of Word;
+      MaxFrameAgeMs : UInt;
+      PollTimeout : Time;
+      RequiredHealthySnapshots : UInt;
+   END_VAR
+   VAR_OUTPUT
+      DataValid : Bool;
+      RejectBits : Word;
+      HealthySnapshotCount : UInt;
+      CalculatedCrc : DWord;
+      WireCrc : DWord;
+      LastAcceptedSequence : DWord;
+      LastAcceptedSession : DWord;
+   END_VAR
+   VAR
+      ValidDataWatchdog : TON_TIME;
+      HaveAcceptedSnapshot : Bool;
+      LastHeartbeat : DWord;
+      NewValidSnapshotThisScan : Bool;
+      HealthySnapshotCountState : UInt;
+      LastAcceptedSequenceState : DWord;
+      LastAcceptedSessionState : DWord;
+   END_VAR
+   VAR_TEMP
+      BeginSequence : DWord;
+      EndSequence : DWord;
+      SessionId : DWord;
+      Heartbeat : DWord;
+      SequenceDelta : DWord;
+      ChannelIndex : Int;
+      ReservedIndex : Int;
+      FlagsOk : Bool;
+      SessionChanged : Bool;
+      DuplicateSnapshot : Bool;
+   END_VAR
+
+BEGIN
+   // RejectBits:
+   // bit 0 transport/watchdog, 1 header, 2 torn/backward sequence,
+   // 3 CRC, 4 heartbeat, 5 SBUS flags, 6 channel metadata/age,
+   // 7 reserved non-zero.
+   #NewValidSnapshotThisScan := FALSE;
+   #RejectBits := 16#0000;
+
+   IF #PollError THEN
+      #DataValid := FALSE;
+      "DB_ValidatedG16Input".Data.Valid := FALSE;
+      #RejectBits := #RejectBits OR 16#0001;
+   END_IF;
+
+   IF #PollDone THEN
+      #BeginSequence := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[4], LowWord := #Raw[5]);
+      #SessionId := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[6], LowWord := #Raw[7]);
+      #Heartbeat := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[8], LowWord := #Raw[9]);
+      #EndSequence := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[62], LowWord := #Raw[63]);
+      #WireCrc := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[60], LowWord := #Raw[61]);
+      #CalculatedCrc := "FC_Crc32IsoHdlc"(
+         Registers := #Raw, RegisterCount := 60);
+
+      IF (#Raw[0] <> 16#4547) OR (#Raw[1] <> 1) OR
+         (#Raw[2] <> 1) OR (#Raw[3] <> 64) THEN
+         #RejectBits := #RejectBits OR 16#0002;
+      END_IF;
+
+      #SessionChanged := #HaveAcceptedSnapshot AND
+         (#SessionId <> #LastAcceptedSessionState);
+      #DuplicateSnapshot := #HaveAcceptedSnapshot AND NOT #SessionChanged AND
+         (#BeginSequence = #LastAcceptedSequenceState) AND
+         (#EndSequence = #LastAcceptedSequenceState);
+
+      IF #BeginSequence <> #EndSequence THEN
+         #RejectBits := #RejectBits OR 16#0004;
+      ELSIF #HaveAcceptedSnapshot AND NOT #SessionChanged AND
+         NOT #DuplicateSnapshot THEN
+         #SequenceDelta := #BeginSequence - #LastAcceptedSequenceState;
+         IF #SequenceDelta >= 16#80000000 THEN
+            #RejectBits := #RejectBits OR 16#0004;
+         END_IF;
+      END_IF;
+
+      IF #CalculatedCrc <> #WireCrc THEN
+         #RejectBits := #RejectBits OR 16#0008;
+      END_IF;
+
+      IF #HaveAcceptedSnapshot AND NOT #SessionChanged AND
+         NOT #DuplicateSnapshot AND
+         (#Heartbeat = #LastHeartbeat) THEN
+         #RejectBits := #RejectBits OR 16#0010;
+      END_IF;
+
+      #FlagsOk := ((#Raw[15] AND 16#0001) <> 0) AND
+         ((#Raw[15] AND 16#0008) <> 0) AND
+         ((#Raw[15] AND 16#0016) = 0);
+      IF NOT #FlagsOk THEN
+         #RejectBits := #RejectBits OR 16#0020;
+      END_IF;
+
+      IF (#Raw[16] <> 16) OR (#Raw[17] <> 16#FFFF) OR
+         (WORD_TO_UINT(#Raw[14]) > #MaxFrameAgeMs) THEN
+         #RejectBits := #RejectBits OR 16#0040;
+      END_IF;
+
+      FOR #ReservedIndex := 42 TO 59 DO
+         IF #Raw[#ReservedIndex] <> 0 THEN
+            #RejectBits := #RejectBits OR 16#0080;
+         END_IF;
+      END_FOR;
+
+      IF (#RejectBits = 0) AND #DuplicateSnapshot THEN
+         // Polling may be faster than the ESP snapshot publication rate.
+         // A byte-identical duplicate is not a new acceptance and must not
+         // make an otherwise fresh validated value flicker false.
+         #RejectBits := 16#0000;
+      ELSIF #RejectBits = 0 THEN
+         #NewValidSnapshotThisScan := TRUE;
+         IF (NOT #HaveAcceptedSnapshot) OR #SessionChanged THEN
+            #HealthySnapshotCountState := 1;
+         ELSIF #HealthySnapshotCountState < #RequiredHealthySnapshots THEN
+            #HealthySnapshotCountState := #HealthySnapshotCountState + 1;
+         END_IF;
+
+         #HaveAcceptedSnapshot := TRUE;
+         #LastAcceptedSequenceState := #BeginSequence;
+         #LastAcceptedSessionState := #SessionId;
+         #LastHeartbeat := #Heartbeat;
+
+         // Copy only a completely accepted snapshot into the typed working DB.
+         "DB_ValidatedG16Input".Data.SessionId := #SessionId;
+         "DB_ValidatedG16Input".Data.Sequence := #BeginSequence;
+         "DB_ValidatedG16Input".Data.Heartbeat := #Heartbeat;
+         "DB_ValidatedG16Input".Data.SbusFrameCounter :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[10], LowWord := #Raw[11]);
+         "DB_ValidatedG16Input".Data.GatewayMonotonicMs :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[12], LowWord := #Raw[13]);
+         "DB_ValidatedG16Input".Data.FrameAgeMs := WORD_TO_UINT(#Raw[14]);
+         "DB_ValidatedG16Input".Data.SbusFlags := #Raw[15];
+         "DB_ValidatedG16Input".Data.ChannelValidMask := #Raw[17];
+         FOR #ChannelIndex := 0 TO 15 DO
+            "DB_ValidatedG16Input".Data.ChannelRaw[#ChannelIndex] :=
+               WORD_TO_UINT(#Raw[18 + #ChannelIndex]);
+         END_FOR;
+         "DB_ValidatedG16Input".Data.FramePeriodUs :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[34], LowWord := #Raw[35]);
+         "DB_ValidatedG16Input".Data.InvalidFrameCount :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[36], LowWord := #Raw[37]);
+         "DB_ValidatedG16Input".Data.FrameLostCount :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[38], LowWord := #Raw[39]);
+         "DB_ValidatedG16Input".Data.FailsafeCount :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[40], LowWord := #Raw[41]);
+
+         #DataValid := #HealthySnapshotCountState >= #RequiredHealthySnapshots;
+         "DB_ValidatedG16Input".Data.Valid := #DataValid;
+      ELSE
+         #DataValid := FALSE;
+         #HealthySnapshotCountState := 0;
+         "DB_ValidatedG16Input".Data.Valid := FALSE;
+      END_IF;
+   END_IF;
+
+   // Re-evaluate after this scan's validation so a newly accepted snapshot
+   // resets the freshness timer immediately.
+   #ValidDataWatchdog(IN := NOT #NewValidSnapshotThisScan, PT := #PollTimeout);
+   IF #ValidDataWatchdog.Q THEN
+      #DataValid := FALSE;
+      "DB_ValidatedG16Input".Data.Valid := FALSE;
+      #RejectBits := #RejectBits OR 16#0001;
+   END_IF;
+
+   // Outputs mirror initialized static state; they are not used as memory.
+   #HealthySnapshotCount := #HealthySnapshotCountState;
+   #LastAcceptedSequence := #LastAcceptedSequenceState;
+   #LastAcceptedSession := #LastAcceptedSessionState;
+END_FUNCTION_BLOCK

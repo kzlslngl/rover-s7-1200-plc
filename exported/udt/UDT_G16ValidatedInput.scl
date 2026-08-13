@@ -1,0 +1,19 @@
+TYPE "UDT_G16ValidatedInput"
+VERSION : 0.1
+   STRUCT
+      Valid : Bool;
+      SessionId : DWord;
+      Sequence : DWord;
+      Heartbeat : DWord;
+      SbusFrameCounter : DWord;
+      GatewayMonotonicMs : DWord;
+      FrameAgeMs : UInt;
+      SbusFlags : Word;
+      ChannelValidMask : Word;
+      ChannelRaw : Array[0..15] of UInt;
+      FramePeriodUs : DWord;
+      InvalidFrameCount : DWord;
+      FrameLostCount : DWord;
+      FailsafeCount : DWord;
+   END_STRUCT;
+END_TYPE

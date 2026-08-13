@@ -1,0 +1,41 @@
+FUNCTION "FC_Crc32IsoHdlc" : DWord
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Registers : Array[0..63] of Word;
+      RegisterCount : UInt;
+   END_VAR
+   VAR_TEMP
+      Crc : DWord;
+      CurrentByte : Byte;
+      RegisterIndex : Int;
+      ByteIndex : Int;
+      BitIndex : Int;
+   END_VAR
+
+BEGIN
+   // CRC-32/ISO-HDLC: reflected polynomial, init/xorout all ones.
+   #Crc := 16#FFFFFFFF;
+
+   FOR #RegisterIndex := 0 TO UINT_TO_INT(#RegisterCount) - 1 DO
+      // Protocol byte stream is high byte first, then low byte.
+      FOR #ByteIndex := 0 TO 1 DO
+         IF #ByteIndex = 0 THEN
+            #CurrentByte := WORD_TO_BYTE(SHR(IN := #Registers[#RegisterIndex], N := 8));
+         ELSE
+            #CurrentByte := WORD_TO_BYTE(#Registers[#RegisterIndex] AND 16#00FF);
+         END_IF;
+
+         #Crc := #Crc XOR BYTE_TO_DWORD(#CurrentByte);
+         FOR #BitIndex := 0 TO 7 DO
+            IF (#Crc AND 16#00000001) <> 0 THEN
+               #Crc := SHR(IN := #Crc, N := 1) XOR 16#EDB88320;
+            ELSE
+               #Crc := SHR(IN := #Crc, N := 1);
+            END_IF;
+         END_FOR;
+      END_FOR;
+   END_FOR;
+
+   #FC_Crc32IsoHdlc := #Crc XOR 16#FFFFFFFF;
+END_FUNCTION

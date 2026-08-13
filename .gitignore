@@ -1,0 +1,11 @@
+# TIA Portal binary project (kept locally, not versioned)
+tia/
+
+# TIA Portal transient files
+tia/**/Logs/
+tia/**/TMP/
+tia/**/IM/SearchIndex/*.lock
+
+# Windows metadata
+Thumbs.db
+Desktop.ini

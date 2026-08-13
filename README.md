@@ -6,8 +6,10 @@ yetki yolu, kontrollü duruş ve PLC güvenlik interlock uygulaması.
 Hedef PLC:
 
 - Siemens S7-1200 CPU 1214C DC/DC/DC
-- TIA Portal sürümü: henüz kesinleşmedi
-- PLC firmware ve genişleme modülleri: henüz kesinleşmedi
+- TIA Portal sürümü: V20
+- CPU sipariş numarası: `6ES7 214-1AG40-0XB0`
+- Hedef katalog firmware seviyesi: V4.7; fiziksel CPU firmware'i V4.6
+- Genişleme modülleri: henüz kesinleşmedi
 - Haberleşme sözleşmesi: Modbus TCP protokolü v1.1
 
 Bu depo TIA Portal projesini, metin olarak dışa aktarılmış PLC kaynaklarını,
@@ -227,8 +229,6 @@ aktüatör çıkışı eklenmemelidir.
 
 ## Açık kararlar
 
-- TIA Portal sürümü
-- CPU firmware sürümü ve kesin sipariş kodu
 - Fiziksel DB numaraları
 - Ham Modbus DB'lerinin optimized/non-optimized yerleşimi
 - PLC, Orin ve ESP IP/subnet/VLAN planı

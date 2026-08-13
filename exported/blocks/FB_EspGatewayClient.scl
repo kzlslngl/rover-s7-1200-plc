@@ -1,0 +1,49 @@
+FUNCTION_BLOCK "FB_EspGatewayClient"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      Request : Bool;
+      InterfaceId : HW_ANY;
+   END_VAR
+   VAR_OUTPUT
+      Done : Bool;
+      Busy : Bool;
+      Error : Bool;
+      Status : Word;
+   END_VAR
+   VAR
+      Client : MB_CLIENT;
+      Connect : TCON_IP_v4;
+   END_VAR
+
+BEGIN
+   // Bench profile. Production IP values must be moved to validated config.
+   #Connect.InterfaceId := #InterfaceId;
+   #Connect.ID := 16#0001;
+   #Connect.ConnectionType := 16#0B; // TCP
+   #Connect.ActiveEstablished := TRUE;
+   #Connect.RemoteAddress.ADDR[1] := 192;
+   #Connect.RemoteAddress.ADDR[2] := 168;
+   #Connect.RemoteAddress.ADDR[3] := 2;
+   #Connect.RemoteAddress.ADDR[4] := 166;
+   #Connect.RemotePort := 502;
+   #Connect.LocalPort := 0;
+
+   // The ESP server requires Unit ID 1 in the Modbus TCP MBAP header.
+   #Client.MB_Unit_ID := 1;
+
+   #Client(
+      REQ := #Request AND #Enable,
+      DISCONNECT := NOT #Enable,
+      MB_MODE := 0,                 // Read holding registers (FC03)
+      MB_DATA_ADDR := 40321,        // Siemens 4xxxx address for wire offset 320
+      MB_DATA_LEN := 64,
+      MB_DATA_PTR := "DB_EspGatewayRx".Registers,
+      CONNECT := #Connect,
+      DONE => #Done,
+      BUSY => #Busy,
+      ERROR => #Error,
+      STATUS => #Status
+   );
+END_FUNCTION_BLOCK

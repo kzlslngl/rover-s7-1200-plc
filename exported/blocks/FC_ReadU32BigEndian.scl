@@ -1,0 +1,12 @@
+FUNCTION "FC_ReadU32BigEndian" : DWord
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      HighWord : Word;
+      LowWord : Word;
+   END_VAR
+
+BEGIN
+   #FC_ReadU32BigEndian := SHL(IN := WORD_TO_DWORD(#HighWord), N := 16)
+      OR WORD_TO_DWORD(#LowWord);
+END_FUNCTION

@@ -1,0 +1,10 @@
+DATA_BLOCK "DB_ValidatedG16Input"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Data : "UDT_G16ValidatedInput";
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK
