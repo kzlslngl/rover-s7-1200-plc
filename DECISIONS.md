@@ -23,6 +23,9 @@ Ana protokol otoritesi `rover_core_ros2` deposudur:
 
 - referans commit:
   `66f6bde8b457ff8ef04ed045184f519dc34e5ef2`;
+- son uyumluluk kontrolü:
+  `a464881182189243e27e413fd4b0d136ed3a5322` (`main`; aşağıdaki protokol
+  kaynakları ilk referanstan beri değişmemiştir);
 - makine-okunur şema:
   `rover_hardware/config/plc_protocol_v1.yaml`;
 - ortak test vektörleri:
@@ -550,9 +553,12 @@ Bu VM'de TIA Portal, PLC compile veya cihaza download çalıştırılmaz.
 19. PLC restart sonrası authority'nin geri yüklenmemesi.
 20. Mock PLC ve gerçek PLC wire snapshot eşdeğerliği.
 
-Ana ROS test vektörlerinde henüz PLC state, G16, diagnostics/config ve tam ESP
-snapshot known-result değerleri yoktur. Bu vektörler ana sözleşmede
-oluşturulmadan PLC ve ESP tarafında bağımsız beklenen CRC üretilmez.
+Ana ROS test vektörlerinde henüz PLC state, G16, diagnostics/config blokları
+için tam known-result değerleri yoktur. Tam ESP snapshot vektörü firmware
+tarafında bağımsız hesaplanmış ve `PLC_INTEGRATION_GUIDE.md` içine aktarılmıştır;
+ana ROS YAML dosyasına taşınması hâlâ bir upstream işidir. PLC uygulaması bu
+değeri CRC implementasyon testi olarak kullanabilir, fakat yeni wire vektörleri
+ana sözleşmeden bağımsız uydurulmaz.
 
 ## 17. PLC değişiklik kontrol listesi
 
@@ -618,10 +624,12 @@ Bu belge ile ana ROS şeması çelişirse geliştirici sessizce birini seçmez:
 çelişki kaydedilir, ana sözleşme düzeltilir/sürümlenir ve ardından PLC
 uygulaması güncellenir.
 
-### Belgeyi hazırlayan denetim rolü
+### Belgeyi hazırlayan Ana Proje Codex'i: denetim rolü
 
-Bu belge Codex'in **rover sistem uyumluluğu ve güvenlik mimarisi denetçisi**
-rolünde yaptığı inceleme sonucunda hazırlanmıştır.
+Ben bu belgeyi hazırlayan **Ana Proje Codex'i**yim. Çalışma kaynağım ve sistem
+otoritem `rover-core-ros2` projesidir; buradaki görevim rover sistem uyumluluğu
+ve güvenlik mimarisi denetimidir. Ben PLC geliştirme projesinde çalışan PLC
+Codex'i değilim.
 
 Bu rol:
 
@@ -637,3 +645,25 @@ Bu rol:
 Bu not bir otomatik onay değildir. PLC kodunun uygunluğu ancak ilgili commit,
 TIA compile kanıtı, test vektörleri, PLCSIM/gerçek CPU testleri ve donanım
 güvenlik kapıları yeniden incelendikten sonra kabul edilir.
+
+### PLC Codex'i: uygulama rolü ve ilk görev
+
+PC'de bu depo için açılacak **PLC Codex'i** uygulama sahibidir. Bu rol:
+
+- TIA Portal projesini, SCL/UDT/DB kaynaklarını ve test bloklarını oluşturabilir
+  ve değiştirebilir;
+- PC'de TIA compile, PLCSIM ve kullanıcı onayıyla gerçek CPU testlerini
+  çalıştırabilir;
+- metin/SCL/XML dışa aktarımlarını ve test kanıtlarını bu depoda
+  sürümleyebilir;
+- `DECISIONS.md` ile `PLC_INTEGRATION_GUIDE.md` belgelerini zorunlu giriş
+  sözleşmesi olarak kullanır;
+- offset, endian, CRC, bit, enum, session, freshness veya authority anlamını
+  kendi başına değiştirmez; çelişkiyi Ana Proje Codex'ine ve ana sözleşmeye
+  upstream bulgu olarak iletir;
+- safety/HIL kapıları sağlanmadan gerçek aktüatör çıkışı veya hareket üretmez.
+
+İlk uygulama hedefi fiziksel çıkışsızdır: TIA/CPU sürümünü kaydetmek, ham
+transport DB'lerini ve typed UDT'leri oluşturmak, endian ile CRC yardımcılarını
+bilinen-sonuç vektörüyle doğrulamak ve ESP snapshot validator sonucunu yalnız
+watch/diagnostics alanında göstermek.

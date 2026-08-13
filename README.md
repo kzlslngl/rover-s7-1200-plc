@@ -31,6 +31,23 @@ Protokolün ana otoritesi `rover_core_ros2` deposundadır:
 G16 gateway firmware:
 [kzlslngl/rover-g16-gateway-firmware](https://github.com/kzlslngl/rover-g16-gateway-firmware)
 
+## PLC Codex başlangıç sırası
+
+PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlamalıdır:
+
+1. [`DECISIONS.md`](DECISIONS.md): sistem güvenliği, wire sözleşmesi ve PLC
+   mimari sınırları;
+2. [`PLC_INTEGRATION_GUIDE.md`](PLC_INTEGRATION_GUIDE.md): ESP gateway
+   bağlantısı, tam register haritası, CRC vektörü ve HIL kabul adımları;
+3. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+4. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+   validator geliştirme.
+
+Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
+derleme/test kanıtı üreten taraftır. Belgelerde kendisini tanıtan **Ana Proje
+Codex'i** ise `rover-core-ros2` kaynaklı sistem sözleşmesini denetleyen,
+yalnız Markdown bulgusu yazan ayrı roldür.
+
 > Offset, endian, CRC, alan anlamı veya güvenlik semantiği bu depoda bağımsız
 > değiştirilmez. Önce ana protokol sözleşmesi sürümlenir, ardından PLC ve
 > firmware depolarına taşınır.
