@@ -1,0 +1,18 @@
+TYPE "UDT_G16OperationalCommand"
+VERSION : 0.1
+   STRUCT
+      Valid : Bool;
+      OperatorEnable : Bool;
+      ControlledStopRequest : Bool;
+      ManualRequest : Bool;
+      AutoRequest : Bool;
+      AuthorityRequest : Int; // -1 stop, 0 manual, +1 auto
+      ControlLayout : Int; // -1 left throttle/right steer, +1 reverse
+      LayoutValid : Bool;
+      DriveControlsNeutral : Bool;
+      ThrottleCommand : Real; // -1.0 .. +1.0
+      SteeringCommand : Real; // -1.0 .. +1.0
+      ManualSpeedScale : Real; // 0.0 .. 1.0
+      SteeringSensitivity : Real; // 0.0 .. 1.0
+   END_STRUCT;
+END_TYPE

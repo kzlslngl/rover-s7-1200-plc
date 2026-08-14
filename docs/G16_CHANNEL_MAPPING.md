@@ -69,3 +69,25 @@ hareket fonksiyonlarını tanımlamaz.
 | 15 | Bilinmiyor/boş | — | kullanılmayacak |
 
 Varsayılan analog aralıklar min/nötr/max ölçümüyle doğrulanmalıdır.
+
+## Kullanılan operatör arayüzü
+
+İlk sürümde yalnız aşağıdaki kontroller işlev üretir:
+
+| Kontrol | İşlev |
+|---|---|
+| MOD | `OperatorEnable` |
+| SW1 `-1/0/+1` | controlled stop / manual G16 / auto Orin |
+| SW2 `-1/0/+1` | sol gaz-sağ yön / layout kapalı / sağ gaz-sol yön |
+| AUX1 | manuel hız ölçeği `0.0..1.0` |
+| AUX2 | direksiyon hassasiyeti `0.0..1.0` |
+| Joy Y1 ve Joy X2 | sol gaz-sağ yön layout'u |
+| Joy Y2 ve Joy X1 | sağ gaz-sol yön layout'u |
+
+SW3, SW4, A–F kalıcı seçici kanalı, Joy X3/Y3 ve kanal 14/15 reserve'dir;
+hiçbir operasyonel komut üretmez. A–F kanalı kalıcı değer tuttuğu için korna
+gibi momentary görevlerde kullanılmayacaktır.
+
+Layout değişimi hareket sırasında doğrudan uygulanmamalıdır. Authority state
+machine değişikliği algıladığında controlled stop uygulamalı ve yeni layout'u
+ancak seçili gaz/direksiyon eksenleri nötr kaldıktan sonra yeniden arm etmelidir.

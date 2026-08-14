@@ -1,0 +1,16 @@
+TYPE "UDT_AuthorityStatus"
+VERSION : 0.1
+   STRUCT
+      State : Int; // 0 safe, 1 stop, 2 manual wait, 3 manual, 4 auto wait, 5 auto, 6 fault
+      ActiveAuthority : Int; // 0 none, 1 manual G16, 2 auto Orin
+      ManualAuthorityGranted : Bool;
+      AutoAuthorityGranted : Bool;
+      ControlledStopActive : Bool;
+      MotionInhibit : Bool;
+      WaitingForNeutral : Bool;
+      WaitingForOrin : Bool;
+      AutoG16GraceActive : Bool;
+      LastTransitionReason : Word;
+      ArmedControlLayout : Int;
+   END_STRUCT;
+END_TYPE

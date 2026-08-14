@@ -1,6 +1,6 @@
 # Proje Durumu
 
-Son güncelleme: 2026-08-13
+Son güncelleme: 2026-08-14
 
 ## Doğrulanan temel bilgiler
 
@@ -52,6 +52,9 @@ diagnostics** ekranından okunana kadar doğrulanmış sayılmaz.
 - [x] G16 snapshot validator'ını diagnostics/watch-only olarak yaz
 - [x] G16 validator'ını TIA V20'de compile edip canlı snapshot ile doğrula
 - [ ] G16 kanal mapping ve min/nötr/max değerlerini ölç
+- [x] G16 operasyonel komut katmanını TIA V20'de canlı doğrula
+- [x] Authority state machine'i diagnostics-only olarak yaz ve bench testlerini geçir
+- [x] MANUAL/AUTO kaynak kaybı, grace, layout ve safety fault geçişlerini doğrula
 - [ ] Orin command snapshot validator'ını diagnostics/watch-only olarak yaz
 - [ ] Negatif ve sınır durum enjeksiyon testlerini çalıştır
 

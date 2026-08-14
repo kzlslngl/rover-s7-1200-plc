@@ -1,0 +1,205 @@
+FUNCTION_BLOCK "FB_AuthorityStateMachine"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      SafetyChainOk : Bool;
+      G16Valid : Bool;
+      G16Command : "UDT_G16OperationalCommand";
+      OrinValid : Bool;
+      ControlledStopComplete : Bool;
+      NeutralHoldTime : Time;
+      AutoG16GraceTime : Time;
+   END_VAR
+   VAR
+      CurrentState : Int;
+      ArmedControlLayout : Int;
+      LastTransitionReason : Word;
+      NeutralTimer : TON_TIME;
+      AutoG16GraceTimer : TON_TIME;
+   END_VAR
+
+BEGIN
+   // State: 0 SAFE, 1 CONTROLLED_STOP, 2 MANUAL_WAIT_NEUTRAL,
+   // 3 MANUAL_ACTIVE, 4 AUTO_WAIT_ORIN, 5 AUTO_ACTIVE, 6 FAULT.
+   // Transition reason: 1 operator disabled, 2 stop selected, 3 G16 loss,
+   // 4 Orin loss, 5 layout change, 6 safety chain, 7 G16 grace expired,
+   // 8 authority source change.
+
+   #NeutralTimer(
+      IN := (#CurrentState = 2) AND #G16Valid AND #G16Command.Valid AND
+         #G16Command.OperatorEnable AND #G16Command.ManualRequest AND
+         #G16Command.LayoutValid AND #G16Command.DriveControlsNeutral AND
+         (#G16Command.ControlLayout = #ArmedControlLayout),
+      PT := #NeutralHoldTime
+   );
+
+   #AutoG16GraceTimer(
+      IN := (#CurrentState = 5) AND (NOT #G16Valid),
+      PT := #AutoG16GraceTime
+   );
+
+   CASE #CurrentState OF
+      0: // SAFE
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF #G16Valid AND #G16Command.Valid THEN
+            // SAFE is already inhibited/stopped. A released enable or an
+            // explicit stop request therefore keeps SAFE without cycling
+            // through CONTROLLED_STOP.
+            IF #G16Command.ManualRequest THEN
+               #ArmedControlLayout := #G16Command.ControlLayout;
+               #CurrentState := 2;
+               #LastTransitionReason := 16#0000;
+            ELSIF #G16Command.AutoRequest THEN
+               #CurrentState := 4;
+               #LastTransitionReason := 16#0000;
+            END_IF;
+         END_IF;
+
+      1: // CONTROLLED_STOP
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF #ControlledStopComplete THEN
+            IF #G16Valid AND #G16Command.Valid AND
+               #G16Command.OperatorEnable AND #G16Command.ManualRequest THEN
+               #ArmedControlLayout := #G16Command.ControlLayout;
+               #CurrentState := 2;
+               #LastTransitionReason := 16#0000;
+            ELSIF #G16Valid AND #G16Command.Valid AND
+               #G16Command.OperatorEnable AND #G16Command.AutoRequest THEN
+               #CurrentState := 4;
+               #LastTransitionReason := 16#0000;
+            ELSE
+               #CurrentState := 0;
+            END_IF;
+         END_IF;
+
+      2: // MANUAL_WAIT_NEUTRAL
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF NOT #G16Valid OR NOT #G16Command.Valid THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0003;
+         ELSIF NOT #G16Command.OperatorEnable THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0001;
+         ELSIF #G16Command.ControlledStopRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0002;
+         ELSIF NOT #G16Command.ManualRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0008;
+         ELSIF #G16Command.ControlLayout <> #ArmedControlLayout THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0005;
+         ELSIF #NeutralTimer.Q THEN
+            #CurrentState := 3;
+            #LastTransitionReason := 16#0000;
+         END_IF;
+
+      3: // MANUAL_ACTIVE
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF NOT #G16Valid OR NOT #G16Command.Valid THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0003;
+         ELSIF NOT #G16Command.OperatorEnable THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0001;
+         ELSIF #G16Command.ControlledStopRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0002;
+         ELSIF NOT #G16Command.ManualRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0008;
+         ELSIF #G16Command.ControlLayout <> #ArmedControlLayout THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0005;
+         END_IF;
+
+      4: // AUTO_WAIT_ORIN
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF NOT #G16Valid OR NOT #G16Command.Valid THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0003;
+         ELSIF NOT #G16Command.OperatorEnable THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0001;
+         ELSIF #G16Command.ControlledStopRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0002;
+         ELSIF NOT #G16Command.AutoRequest THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0008;
+         ELSIF #OrinValid THEN
+            #CurrentState := 5;
+            #LastTransitionReason := 16#0000;
+         END_IF;
+
+      5: // AUTO_ACTIVE
+         IF NOT #SafetyChainOk THEN
+            #CurrentState := 6;
+            #LastTransitionReason := 16#0006;
+         ELSIF NOT #OrinValid THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0004;
+         ELSIF #G16Valid AND #G16Command.Valid THEN
+            IF NOT #G16Command.OperatorEnable THEN
+               #CurrentState := 1;
+               #LastTransitionReason := 16#0001;
+            ELSIF #G16Command.ControlledStopRequest THEN
+               #CurrentState := 1;
+               #LastTransitionReason := 16#0002;
+            ELSIF NOT #G16Command.AutoRequest THEN
+               #CurrentState := 1;
+               #LastTransitionReason := 16#0008;
+            END_IF;
+         ELSIF #AutoG16GraceTimer.Q THEN
+            #CurrentState := 1;
+            #LastTransitionReason := 16#0007;
+         END_IF;
+
+      6: // FAULT
+         // Reset is deliberately conservative: safety restored, vehicle
+         // stopped, G16 healthy and operator enable released.
+         IF #SafetyChainOk AND #ControlledStopComplete AND #G16Valid AND
+            #G16Command.Valid AND (NOT #G16Command.OperatorEnable) THEN
+            #CurrentState := 0;
+            #LastTransitionReason := 16#0000;
+         END_IF;
+
+      ELSE
+         #CurrentState := 6;
+         #LastTransitionReason := 16#0006;
+   END_CASE;
+
+   // Publish a complete status image every scan.
+   "DB_AuthorityStatus".Data.State := #CurrentState;
+   "DB_AuthorityStatus".Data.ActiveAuthority := 0;
+   "DB_AuthorityStatus".Data.ManualAuthorityGranted := FALSE;
+   "DB_AuthorityStatus".Data.AutoAuthorityGranted := FALSE;
+   "DB_AuthorityStatus".Data.ControlledStopActive := #CurrentState = 1;
+   "DB_AuthorityStatus".Data.MotionInhibit := TRUE;
+   "DB_AuthorityStatus".Data.WaitingForNeutral := #CurrentState = 2;
+   "DB_AuthorityStatus".Data.WaitingForOrin := #CurrentState = 4;
+   "DB_AuthorityStatus".Data.AutoG16GraceActive :=
+      (#CurrentState = 5) AND (NOT #G16Valid);
+   "DB_AuthorityStatus".Data.LastTransitionReason := #LastTransitionReason;
+   "DB_AuthorityStatus".Data.ArmedControlLayout := #ArmedControlLayout;
+
+   IF #CurrentState = 3 THEN
+      "DB_AuthorityStatus".Data.ActiveAuthority := 1;
+      "DB_AuthorityStatus".Data.ManualAuthorityGranted := TRUE;
+      "DB_AuthorityStatus".Data.MotionInhibit := FALSE;
+   ELSIF #CurrentState = 5 THEN
+      "DB_AuthorityStatus".Data.ActiveAuthority := 2;
+      "DB_AuthorityStatus".Data.AutoAuthorityGranted := TRUE;
+      "DB_AuthorityStatus".Data.MotionInhibit := FALSE;
+   END_IF;
+END_FUNCTION_BLOCK

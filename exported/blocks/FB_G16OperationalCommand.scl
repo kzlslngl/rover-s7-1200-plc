@@ -1,0 +1,81 @@
+FUNCTION_BLOCK "FB_G16OperationalCommand"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      G16Valid : Bool;
+      Controls : "UDT_G16Controls";
+      NeutralThreshold : Real;
+      ThrottleInvert : Bool;
+      SteeringInvert : Bool;
+   END_VAR
+   VAR_TEMP
+      SelectedThrottle : Real;
+      SelectedSteering : Real;
+   END_VAR
+
+BEGIN
+   // Fail-closed defaults. No stale command is retained.
+   "DB_G16OperationalCommand".Data.Valid := FALSE;
+   "DB_G16OperationalCommand".Data.OperatorEnable := FALSE;
+   "DB_G16OperationalCommand".Data.ControlledStopRequest := TRUE;
+   "DB_G16OperationalCommand".Data.ManualRequest := FALSE;
+   "DB_G16OperationalCommand".Data.AutoRequest := FALSE;
+   "DB_G16OperationalCommand".Data.AuthorityRequest := -1;
+   "DB_G16OperationalCommand".Data.ControlLayout := 0;
+   "DB_G16OperationalCommand".Data.LayoutValid := FALSE;
+   "DB_G16OperationalCommand".Data.DriveControlsNeutral := FALSE;
+   "DB_G16OperationalCommand".Data.ThrottleCommand := 0.0;
+   "DB_G16OperationalCommand".Data.SteeringCommand := 0.0;
+   "DB_G16OperationalCommand".Data.ManualSpeedScale := 0.0;
+   "DB_G16OperationalCommand".Data.SteeringSensitivity := 0.0;
+   #SelectedThrottle := 0.0;
+   #SelectedSteering := 0.0;
+
+   IF #G16Valid AND #Controls.Valid THEN
+      "DB_G16OperationalCommand".Data.Valid := TRUE;
+      "DB_G16OperationalCommand".Data.OperatorEnable := #Controls.ModHigh;
+      "DB_G16OperationalCommand".Data.AuthorityRequest := #Controls.Sw1Position;
+      "DB_G16OperationalCommand".Data.ControlLayout := #Controls.Sw2Position;
+      "DB_G16OperationalCommand".Data.ManualSpeedScale := #Controls.Aux1;
+      "DB_G16OperationalCommand".Data.SteeringSensitivity := #Controls.Aux2;
+
+      IF #Controls.Sw2Position = -1 THEN
+         // Left stick Y1 throttle, right stick X2 steering.
+         #SelectedThrottle := #Controls.JoyY1;
+         #SelectedSteering := #Controls.JoyX2;
+         "DB_G16OperationalCommand".Data.LayoutValid := TRUE;
+      ELSIF #Controls.Sw2Position = 1 THEN
+         // Right stick Y2 throttle, left stick X1 steering.
+         #SelectedThrottle := #Controls.JoyY2;
+         #SelectedSteering := #Controls.JoyX1;
+         "DB_G16OperationalCommand".Data.LayoutValid := TRUE;
+      END_IF;
+
+      IF #ThrottleInvert THEN
+         #SelectedThrottle := -#SelectedThrottle;
+      END_IF;
+      IF #SteeringInvert THEN
+         #SelectedSteering := -#SelectedSteering;
+      END_IF;
+
+      "DB_G16OperationalCommand".Data.DriveControlsNeutral :=
+         (ABS(#SelectedThrottle) <= #NeutralThreshold) AND
+         (ABS(#SelectedSteering) <= #NeutralThreshold);
+
+      "DB_G16OperationalCommand".Data.ControlledStopRequest :=
+         (NOT #Controls.ModHigh) OR (#Controls.Sw1Position = -1) OR
+         ((#Controls.Sw1Position = 0) AND
+         (NOT "DB_G16OperationalCommand".Data.LayoutValid));
+      "DB_G16OperationalCommand".Data.ManualRequest :=
+         #Controls.ModHigh AND (#Controls.Sw1Position = 0) AND
+         "DB_G16OperationalCommand".Data.LayoutValid;
+      "DB_G16OperationalCommand".Data.AutoRequest :=
+         #Controls.ModHigh AND (#Controls.Sw1Position = 1);
+
+      // Manual commands are exposed only while MANUAL is requested.
+      IF "DB_G16OperationalCommand".Data.ManualRequest THEN
+         "DB_G16OperationalCommand".Data.ThrottleCommand := #SelectedThrottle;
+         "DB_G16OperationalCommand".Data.SteeringCommand := #SelectedSteering;
+      END_IF;
+   END_IF;
+END_FUNCTION_BLOCK
