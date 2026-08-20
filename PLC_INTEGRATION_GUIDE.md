@@ -10,7 +10,7 @@ Kaynaklar:
 - ana sistem otoritesi: `rover-core-ros2/main` commit
   `a464881182189243e27e413fd4b0d136ed3a5322`;
 - ESP uygulama kaynağı: `rover-g16-gateway-firmware` commit
-  `3f740f24b835493d5cca29ea64662c4a31f89e69`;
+  `404af0e636a8ccdd0b3c3011b69eb41ca6208702`;
 - bu kılavuzun ESP kaynağı: `PLC_INTEGRATION_GUIDE.md`;
 - PLC mimari ve güvenlik kararları: [`DECISIONS.md`](DECISIONS.md).
 
@@ -24,7 +24,9 @@ belgeye göre uygulama ve test yapar. Bir çelişkide sessizce karar verilmez;
 | Parametre | Bench değeri | Not |
 |---|---:|---|
 | ESP32 adresi | `192.168.2.166/24` | Firmware build ayarıdır, değiştirilebilir |
-| PLC/PC bench adresi | `192.168.2.241/24` | Production PLC adresi henüz atanmadı |
+| PLC bench adresi | `192.168.2.100/24` | Gerçek PLC bench testinde kullanıldı |
+| PC bench adresi | `192.168.2.241/24` | Önceki test istemcisi; PLC adresi değildir |
+| Firmware IPv4 gateway | `192.168.2.241` | Eski bench değeri; production gateway değildir |
 | Protokol | Modbus TCP | TCP port `502` |
 | Unit ID | `1` | |
 | Fonksiyon | Yalnız FC03 | Holding register okuma |
@@ -34,6 +36,9 @@ belgeye göre uygulama ve test yapar. Bir çelişkide sessizce karar verilmez;
 Yalnız `start=320, quantity=64` isteği kabul edilir. Parçalı okuma, farklı
 adres/uzunluk ve bütün yazma fonksiyonları Modbus exception ile reddedilir.
 Bu IP'ler yalnız doğrulanmış bench profilidir; production adresi değildir.
+PLC ile ESP aynı `/24` ağda doğrudan haberleştiği için firmware'de kalan
+`.241` gateway değeri bench iletişimini engellemez. Production ağında gerçek
+default gateway, VLAN ve ACL birlikte atanmalıdır.
 
 ## 2. PLC veri tipi ve byte sırası
 
@@ -135,6 +140,10 @@ PLC, kanalları kullanmadan önce aşağıdaki kontrollerin tamamını geçirmel
 8. `channel_valid_mask=16#FFFF` ve `frame_age_ms` PLC'de seçilecek freshness
    sınırının altında olmalı.
 9. `sbus_frame_counter` PLC'nin belirleyeceği zaman penceresinde ilerlemeli.
+   Bu sayaç yalnız diagnostics değildir; ana ROS sözleşmesine göre G16
+   freshness kabul koşuludur. PLC her poll'da farklı değer beklemez, son
+   ilerlemeyi gördüğü yerel zamanı izler ve pencere aşılırsa G16'yı invalid
+   yapar.
 
 Kontrollerden biri başarısızsa G16 verisi MANUAL komut adayı olamaz. Son iyi
 kanal değerleri hareket üretmek için tutulmamalıdır.
@@ -204,3 +213,19 @@ Script tam snapshot, header, begin/end sequence, CRC ve yazma reddini kontrol
 eder. Bu script PLC safety mantığının yerine geçmez; yalnız endpoint bench
 kanıtıdır. VM'deki Ana Proje Codex'i ESP-IDF, PlatformIO, TIA, PLCSIM veya
 donanım yükleme testi çalıştırmaz.
+
+## 11. 20 Ağustos 2026 PLC entegrasyon notu
+
+- FC03 ile gerçek PLC–ESP normal bench haberleşmesi görülmüştür.
+- PLC `192.168.2.100/24`, ESP `192.168.2.166/24` kullanmıştır.
+- `MaxFrameAgeMs=100 ms`, `PollTimeout=T#500ms` ve üç farklı ilerleyen
+  sağlıklı snapshot başlangıç bench değerleridir; production-final değildir.
+- Mevcut PLC validator uygulamasında SBUS frame counter yalnız diagnostics
+  alanına kopyalanmaktadır. Ana sözleşmeye uyum için counter-age/freeze
+  doğrulaması validity kararına eklenmeden güvenlik kabulü tamamlanmış sayılmaz.
+- Analog kanal min/nötr/max değerlerinden doğrudan ölçülmeyenler varsayım
+  olarak etiketlenir; ortak `282/1002/1722` aralığı ölçüm kanıtı yerine
+  geçmez.
+- ESP reset, SBUS/Ethernet kopması, frozen counter, CRC/torn snapshot ve
+  neutral re-arm testleri PLC authority ve controlled-stop alanları birlikte
+  kaydedilerek tekrar edilmelidir.

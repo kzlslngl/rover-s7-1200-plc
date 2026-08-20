@@ -656,8 +656,9 @@ PC'de bu depo için açılacak **PLC Codex'i** uygulama sahibidir. Bu rol:
   çalıştırabilir;
 - metin/SCL/XML dışa aktarımlarını ve test kanıtlarını bu depoda
   sürümleyebilir;
-- `DECISIONS.md` ile `PLC_INTEGRATION_GUIDE.md` belgelerini zorunlu giriş
-  sözleşmesi olarak kullanır;
+- `DECISIONS.md`, `PLC_INTEGRATION_GUIDE.md` ve
+  `ORIN_PLC_DB_TAG_CONTRACT.md` belgelerini zorunlu giriş sözleşmesi olarak
+  kullanır;
 - offset, endian, CRC, bit, enum, session, freshness veya authority anlamını
   kendi başına değiştirmez; çelişkiyi Ana Proje Codex'ine ve ana sözleşmeye
   upstream bulgu olarak iletir;
@@ -667,3 +668,50 @@ PC'de bu depo için açılacak **PLC Codex'i** uygulama sahibidir. Bu rol:
 transport DB'lerini ve typed UDT'leri oluşturmak, endian ile CRC yardımcılarını
 bilinen-sonuç vektörüyle doğrulamak ve ESP snapshot validator sonucunu yalnız
 watch/diagnostics alanında göstermek.
+
+## 19. 20 Ağustos 2026 uygulama dalı uyumluluk incelemesi
+
+**PLC + UPSTREAM-ACTION**
+
+GitHub'daki `motion-steering-control` uygulama dalı `main` üzerinden
+geliştirilmiş; bu belgenin bulunduğu `agent/plc-contract-decisions` dalını
+içermemektedir. PLC Codex'i yeni uygulamaya devam etmeden önce bu iki dalın
+geçmişini kontrollü biçimde birleştirmeli ve en az şu belgeleri uygulama
+dalında görünür tutmalıdır:
+
+- `DECISIONS.md`;
+- `PLC_INTEGRATION_GUIDE.md`;
+- `ORIN_PLC_DB_TAG_CONTRACT.md`.
+
+Bu bir kod birleştirme talimatı değil, sözleşme kapısıdır. Çakışmada uygulama
+dalı sessizce üstün sayılmaz; ana ROS şeması otoritedir.
+
+Mevcut `FB_G16SnapshotValidator` incelemesinde `sbus_frame_counter`
+accepted typed DB'ye ve diagnostics'e aktarılmakta, fakat ilerleme yaşı
+`DataValid` kararında kullanılmamaktadır. Bölüm 10 ve ana ROS sözleşmesi
+gereği PLC:
+
+- son farklı SBUS frame counter değerini;
+- bu ilerlemeyi gördüğü yerel monotonic zamanı;
+- configured frame-counter freshness penceresini
+
+ayrı tutmalı ve pencere aşımını G16 invalid/reject nedeni yapmalıdır. Her FC03
+poll'unda sayaç değişmesi gerekmez; duplicate gateway snapshot anlık fault
+değildir.
+
+20 Ağustos handoff değerlerinin statüsü:
+
+| Değer | Statü |
+|---|---|
+| PLC `192.168.2.100/24`, ESP `192.168.2.166/24` | doğrulanmış bench |
+| firmware gateway `192.168.2.241` | eski bench; production için geçersiz |
+| `MaxFrameAgeMs=100 ms` | bench/HIL adayı |
+| `PollTimeout=T#500ms` | bench/HIL adayı |
+| üç farklı sağlıklı snapshot | re-arm başlangıç adayı |
+| neutral hold `T#500ms` | bench/HIL adayı |
+| AUTO G16 grace `T#2s` | versioned safety config olmadan production değil |
+
+G16 kanal tablosunda doğrudan ölçülmeyen ortak analog aralıklar doğrulanmış
+kalibrasyon gibi gösterilmez. Kanal mapping sürümü, min/nötr/max, deadband,
+yön ve tolerans gerçek ölçüm kanıtıyla kaydedilmeden MANUAL production kapısı
+açılmaz.

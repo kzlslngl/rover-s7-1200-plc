@@ -39,8 +39,10 @@ PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlam
    mimari sınırları;
 2. [`PLC_INTEGRATION_GUIDE.md`](PLC_INTEGRATION_GUIDE.md): ESP gateway
    bağlantısı, tam register haritası, CRC vektörü ve HIL kabul adımları;
-3. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
-4. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+3. [`ORIN_PLC_DB_TAG_CONTRACT.md`](ORIN_PLC_DB_TAG_CONTRACT.md): Orin–PLC
+   raw/typed DB ayrımı, sembolik tag adları ve publish/validation akışı;
+4. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+5. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
    validator geliştirme.
 
 Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
