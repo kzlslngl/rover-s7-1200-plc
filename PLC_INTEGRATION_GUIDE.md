@@ -7,8 +7,8 @@ değiştirilmeden bu depoda değiştirilemez.
 
 Kaynaklar:
 
-- ana sistem otoritesi: `rover-core-ros2/main` commit
-  `a464881182189243e27e413fd4b0d136ed3a5322`;
+- ana sistem otoritesi: `rover-core-ros2/agent/local-metric-map` commit
+  `caba72c7cce4fdc64328caa1b586c3be68077b23`;
 - ESP uygulama kaynağı: `rover-g16-gateway-firmware` commit
   `404af0e636a8ccdd0b3c3011b69eb41ca6208702`;
 - bu kılavuzun ESP kaynağı: `PLC_INTEGRATION_GUIDE.md`;

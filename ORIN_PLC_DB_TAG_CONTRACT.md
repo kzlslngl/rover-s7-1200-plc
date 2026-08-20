@@ -65,8 +65,9 @@ Aşağıdakiler henüz sabitlenmez:
 - gerçek I/Q adresleri ve terminal isimleri;
 - motor, fren, direksiyon ve encoder donanım tag'leri;
 - production heartbeat/command timeout ve hareket limitleri;
-- `PLC_DIAGNOSTICS`, `ACTIVE_CONFIG`, `fault_bits`, `interlock_bits`
-  alanlarının ana şemada henüz tanımlanmamış payload/bit ayrıntıları.
+- gerçek G16 kanal kalibrasyon değerleri ve fren geri bildirim birimi;
+- production `g16_loss_policy` seçimi; ilk bench değeri
+  `STOP_ALL_MODES` olmalıdır.
 
 TBD değerler sıfırla temsil edilmez. Ayrı `Configured` ve `Valid` alanları
 kullanılır.
@@ -251,9 +252,10 @@ ilerlemeyi PLC'nin gördüğü yerel monotonic zamandan hesaplanır.
 | `G16FrameAgeMs` | 108–109 | `DWord` |
 | `G16FrameCounter` | 110–111 | `DWord` |
 
-`FaultBits`, `InterlockBits` ve `G16SummaryFlags` bit anlamları ana
-şemada tamamlanana kadar wire üzerinde sıfırdır. Yerel diagnostics DB'sinde
-ayrıntı tutulabilir fakat wire'a özel bit uydurulmaz.
+`FaultBits`, `InterlockBits` ve `G16SummaryFlags` bit anlamları ana proje
+commit `caba72c` ile kesinleşmiştir. PLC yalnız
+`MAIN_PROTOCOL_HANDOFF_CABA72C.md` içindeki tanımlı bitleri yayınlar; rezerve
+bitler sıfırdır ve wire'a özel yeni bit uydurulmaz.
 
 Her ölçüm yalnız ilgili `StatusFlags` validity bitiyle anlamlıdır. Geçersiz
 ölçümün sayısal değeri safety veya hareket kararı değildir.
@@ -274,13 +276,11 @@ G16 validity için birlikte zorunludur:
 - gerekli channel mask bitleri açık;
 - kalibrasyon sürümü geçerli.
 
-`PLC_DIAGNOSTICS` ve `ACTIVE_CONFIG` header/sequence/CRC iskeleti
-oluşturulabilir. Ana ROS YAML payload offsetleri sürümlenene kadar:
-
-- bütün payload reserved ve sıfır;
-- `ACTIVE_CONFIG_VALID=0`;
-- `BRAKE_EFFECT_VALID=0`;
-- yerel DB alanları wire'a keyfî sırayla encode edilmez.
+`PLC_DIAGNOSTICS` ve `ACTIVE_CONFIG` payload offsetleri ana proje commit
+`caba72c` ile kesinleşmiştir. Typed publisher DB'leri
+`MAIN_PROTOCOL_HANDOFF_CABA72C.md` tablolarına göre encode edilir. Validity
+bitleri gerçek yerel doğrulama sonucudur; yalnız alan mevcut diye açılmaz.
+Tanımlı payload dışında kalan reserved register'lar sıfırdır.
 
 ## 9. Tag isimlendirme standardı
 
@@ -355,14 +355,17 @@ sözleşmesinin parçası değildir. Web UI PLC register'larına doğrudan eriş
 
 PLC Codex'i için ilk güvenli sıra:
 
-1. bu belgeyi `DECISIONS.md` ve ana YAML ile birlikte uygulama dalına al;
+1. bu belgeyi, `DECISIONS.md`, `MAIN_PROTOCOL_HANDOFF_CABA72C.md` ve ana YAML
+   ile birlikte uygulama dalına al;
 2. sembolik UDT/DB'leri fiziksel çıkış bağlantısı olmadan oluştur;
 3. raw MB_SERVER DB'nin non-optimized/non-retentive kanıtını kaydet;
 4. endian, CRC ve command known-result `0x5C224D43` vektörünü doğrula;
 5. command validator'ı watch/diagnostics-only çalıştır;
 6. duplicate, torn, bad CRC, wrong version, session ve timeout testlerini yap;
-7. PLC state encoder'ı mock Orin decoder ile karşılaştır;
-8. ancak bundan sonra authority ve actuator adaptörüne typed bağlantı kur.
+7. PLC state, G16, diagnostics ve active-config encoder'larını beş ortak tam
+   snapshot vektörüyle karşılaştır;
+8. VM'den salt-okunur FC03 ile dört PLC output bloğunu doğrula;
+9. ancak bundan sonra authority ve actuator adaptörüne typed bağlantı kur.
 
 Her TIA exportunda fiziksel DB numarası–sembolik ad tablosu, optimized ve
 retentive özellikler, compile sonucu ve test kanıtı kaydedilir.

@@ -22,10 +22,9 @@ Karar statüleri:
 Ana protokol otoritesi `rover_core_ros2` deposudur:
 
 - referans commit:
-  `66f6bde8b457ff8ef04ed045184f519dc34e5ef2`;
-- son uyumluluk kontrolü:
-  `a464881182189243e27e413fd4b0d136ed3a5322` (`main`; aşağıdaki protokol
-  kaynakları ilk referanstan beri değişmemiştir);
+  `caba72c7cce4fdc64328caa1b586c3be68077b23`;
+- kaynak dal:
+  `rover-core-ros2/agent/local-metric-map`;
 - makine-okunur şema:
   `rover_hardware/config/plc_protocol_v1.yaml`;
 - ortak test vektörleri:
@@ -48,9 +47,9 @@ Protokol wire sürümü:
 | float | IEEE-754 binary32 |
 | CRC | CRC-32/ISO-HDLC |
 
-Makine-okunur YAML sürüm ve offset otoritesidir. İnsan-okunur sözleşmenin
-`ORIN_TO_PLC_COMMAND` tablosunda kalan `protocol_minor = 0` değeri eskidir;
-PLC wire üzerinde `1` bekler ve `1` yayınlar.
+Makine-okunur YAML sürüm ve offset otoritesidir. İnsan-okunur sözleşme de
+`caba72c` ile `protocol_minor = 1` olarak düzeltilmiştir. PLC wire üzerinde
+yalnız tam `1.1` eşleşmesini kabul eder ve `1.1` yayınlar.
 
 ESP tarafının ayrıntılı davranış otoritesi:
 [rover-g16-gateway-firmware/DECISIONS.md](https://github.com/kzlslngl/rover-g16-gateway-firmware/blob/agent/phase1-foundation/DECISIONS.md)
@@ -395,43 +394,40 @@ Kalibrasyon geçerli değilse:
 ESP v1.1 link-quality/RSSI sağlamadığından ilgili valid bitleri sıfır ve
 değerleri sıfırdır.
 
-## 11. Şemada tanımlanmamış wire alanları
+## 11. Tamamlanan upstream wire alanları
 
-**UPSTREAM-ACTION**
+**FIXED**
 
-Makine-okunur v1.1 şemada aşağıdakilerin bit/payload tanımı eksiktir:
+Ana ROS commit `caba72c` ile aşağıdaki önceki upstream açıkları kapanmıştır:
 
 - `g16_summary_flags` bit eşlemesi;
 - `fault_bits` bit eşlemesi;
 - `interlock_bits` bit eşlemesi;
-- `PLC_DIAGNOSTICS` payload offsetleri;
-- `ACTIVE_CONFIG` payload offsetleri.
+- `PLC_DIAGNOSTICS` register `192..255` payload'ı;
+- `ACTIVE_CONFIG` register `256..319` payload'ı;
+- PLC state, G16 status, diagnostics, active config ve ESP snapshot için tam
+  64-register bilinen-sonuç vektörleri;
+- reserved register'ların sıfır ve protocol minor'ın tam eşit olma kuralı.
 
-PLC bu alanlara yerel anlam uydurmaz.
+Kesin bit, enum, offset, validity ve test CRC değerleri
+[`MAIN_PROTOCOL_HANDOFF_CABA72C.md`](MAIN_PROTOCOL_HANDOFF_CABA72C.md)
+belgesindedir. PLC eski geçici “payload reserved/sıfır” davranışını yeni
+uygulamada sürdürmez; typed publisher'ları kesin wire alanlarına encode eder.
 
-Ana ROS şeması güncellenene kadar wire davranışı:
+Geçerlilik davranışı:
 
-- `g16_summary_flags = 0`; G16 durumu `status_flags.G16_VALID` ve
-  `G16_STATUS` bloğından okunur;
-- `fault_bits = 0` ve `interlock_bits = 0`; genel etkileri
-  operational state, reject reason ve safety summary ile raporlanır;
-- diagnostics/config payload reserved register'ları sıfırdır;
-- `ACTIVE_CONFIG_VALID = 0`;
-- birimi active config'e bağlı `BRAKE_EFFECT_VALID = 0`.
+- `g16_summary_flags`, `fault_bits` ve `interlock_bits` yalnız tanımlı bitleri
+  kullanır; diğer bitler sıfırdır;
+- diagnostics/config bloklarının yalnız tanımlı payload alanları encode
+  edilir; belgelenmiş reserved register'lar sıfırdır;
+- `ACTIVE_CONFIG_VALID`, doğrulanmış config ve zorunlu config-validity
+  bitleri birlikte sağlanmadan açılmaz;
+- `BRAKE_EFFECT_VALID`, `FEEDBACK_UNITS_VALID` olmadan açılmaz.
 
 Internal `DB_ActiveConfig` geçerliliği ile wire
-`status_flags.ACTIVE_CONFIG_VALID` aynı şey değildir. Internal config
-izole PLC testlerinde geçerli olabilir; fakat wire payload şeması
-sürümlenmeden `ACTIVE_CONFIG_VALID` biti açılmaz. Ana ROS güvenlik kapısı bu
-biti gerektiriyorsa uçtan uca AUTO entegrasyonu upstream action kapanana
-kadar bloklu kalır.
-
-Bu geçici davranış hareket güvenliğini gevşetmez fakat ayrıntılı uzaktan
-diagnostics sağlamaz. Bu beş wire tanımı gerçek PLC–Orin entegrasyonundan
-önce ana ROS YAML'ında sürümlenmelidir.
-
-İnsan-okunur tablodaki `protocol_minor = 0` değeri de ana ROS deposunda
-`1` olarak düzeltilmelidir.
+`status_flags.ACTIVE_CONFIG_VALID` aynı şey değildir. Alanların tanımlanmış
+olması config değerlerini otomatik olarak production-valid yapmaz; gerçek
+timeout ve hareket limitleri HIL kapısına tabidir.
 
 ## 12. Timeout, limit ve config politikası
 
@@ -553,12 +549,10 @@ Bu VM'de TIA Portal, PLC compile veya cihaza download çalıştırılmaz.
 19. PLC restart sonrası authority'nin geri yüklenmemesi.
 20. Mock PLC ve gerçek PLC wire snapshot eşdeğerliği.
 
-Ana ROS test vektörlerinde henüz PLC state, G16, diagnostics/config blokları
-için tam known-result değerleri yoktur. Tam ESP snapshot vektörü firmware
-tarafında bağımsız hesaplanmış ve `PLC_INTEGRATION_GUIDE.md` içine aktarılmıştır;
-ana ROS YAML dosyasına taşınması hâlâ bir upstream işidir. PLC uygulaması bu
-değeri CRC implementasyon testi olarak kullanabilir, fakat yeni wire vektörleri
-ana sözleşmeden bağımsız uydurulmaz.
+Ana ROS test vektörleri artık command, PLC state, G16, diagnostics, active
+config ve ESP bloklarının tamamı için known-result değerleri içerir. PLC test
+FB/watch table çıktısı ana YAML'daki 64 register ile birebir karşılaştırılır;
+yalnız CRC değerinin tutması yeterli kabul edilmez.
 
 ## 17. PLC değişiklik kontrol listesi
 
@@ -607,8 +601,8 @@ uygulaması için gereken ortak sınırdır.
 Ana sistem ve sözleşme kaynağı:
 [kzlslngl/rover-core-ros2](https://github.com/kzlslngl/rover-core-ros2)
 
-Bu belgenin ilk referansı:
-`66f6bde8b457ff8ef04ed045184f519dc34e5ef2`
+Bu belgenin güncel referansı:
+`caba72c7cce4fdc64328caa1b586c3be68077b23`
 
 Talepler özellikle şu ana proje kaynaklarından gelir:
 
@@ -671,7 +665,7 @@ watch/diagnostics alanında göstermek.
 
 ## 19. 20 Ağustos 2026 uygulama dalı uyumluluk incelemesi
 
-**PLC + UPSTREAM-ACTION**
+**PLC**
 
 GitHub'daki `motion-steering-control` uygulama dalı `main` üzerinden
 geliştirilmiş; bu belgenin bulunduğu `agent/plc-contract-decisions` dalını

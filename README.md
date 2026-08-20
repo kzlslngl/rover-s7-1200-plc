@@ -18,7 +18,7 @@ firmware depolarından bağımsız sürümlemek içindir.
 
 Protokolün ana otoritesi `rover_core_ros2` deposundadır:
 
-- Referans commit: `66f6bde8b457ff8ef04ed045184f519dc34e5ef2`
+- Referans commit: `caba72c7cce4fdc64328caa1b586c3be68077b23`
 - İnsan-okunur sözleşme:
   `docs/PLC_ORIN_G16_HABERLESME_SOZLESMESI.md`
 - Makine-okunur register şeması:
@@ -41,8 +41,11 @@ PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlam
    bağlantısı, tam register haritası, CRC vektörü ve HIL kabul adımları;
 3. [`ORIN_PLC_DB_TAG_CONTRACT.md`](ORIN_PLC_DB_TAG_CONTRACT.md): Orin–PLC
    raw/typed DB ayrımı, sembolik tag adları ve publish/validation akışı;
-4. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
-5. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+4. [`MAIN_PROTOCOL_HANDOFF_CABA72C.md`](MAIN_PROTOCOL_HANDOFF_CABA72C.md):
+   ana projede kapanan bitfield, diagnostics/config payload, test vektörü ve
+   VM–PLC bench kabul kapıları;
+5. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+6. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
    validator geliştirme.
 
 Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
