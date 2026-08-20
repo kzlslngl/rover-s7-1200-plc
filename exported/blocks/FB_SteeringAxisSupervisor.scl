@@ -1,0 +1,350 @@
+FUNCTION_BLOCK "FB_SteeringAxisSupervisor"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_INPUT
+      SteeringAxisInstalled : Bool;
+      CommissioningEnable : Bool;
+      ServoEnableAll : Bool;
+      SteeringServoAlarmOk : Bool;
+      AxisMotionError : Bool;
+      PotSignalValid : Bool;
+      PotRaw : Int;
+      ManualAuthorityGranted : Bool;
+      AutoAuthorityGranted : Bool;
+      ManualSteeringCommand : Real;
+      ManualSteeringSensitivity : Real;
+      AutoTargetAngleDeg : Real;
+      AutoCommandValid : Bool;
+      VehicleSpeedValid : Bool;
+      VehicleSpeedMps : Real;
+      PotRawAtMinAngle : Int;
+      PotRawAtCenter : Int;
+      PotRawAtMaxAngle : Int;
+      PotHardLimitMarginRaw : Int;
+      MinAngleDeg : Real;
+      CenterAngleDeg : Real;
+      MaxAngleDeg : Real;
+      StopToleranceDeg : Real;
+      RestartToleranceDeg : Real;
+      VelocityGain : Real;
+      MinimumJogVelocityDegPerSec : Real;
+      ManualMaximumRateDegPerSec : Real;
+      ManualMinimumRateDegPerSec : Real;
+      AutoRateAtZeroSpeedDegPerSec : Real;
+      AutoRateAtHighSpeedDegPerSec : Real;
+      AutoRateHighSpeedMps : Real;
+      VelocityAccelerationDegPerSec2 : Real;
+      VelocityDecelerationDegPerSec2 : Real;
+      CycleTimeSec : Real;
+      JogDirectionInvert : Bool;
+   END_VAR
+   VAR_OUTPUT
+      AxisPowerEnable : Bool;
+      JogPositive : Bool;
+      JogNegative : Bool;
+      JogVelocityDegPerSec : Real;
+      DesiredTargetAngleDeg : Real;
+      TargetAngleDeg : Real;
+      ActualAngleDeg : Real;
+      AtTarget : Bool;
+      Ready : Bool;
+      HardLimitActive : Bool;
+      EffectiveRateLimitDegPerSec : Real;
+      InhibitReason : Word;
+   END_VAR
+   VAR
+      LimitedTargetAngleDeg : Real;
+      CurrentJogVelocityDegPerSec : Real;
+      JogState : Int; // -1 negative, 0 stopped, +1 positive
+      WasMotionActive : Bool;
+   END_VAR
+   VAR_TEMP
+      CalibrationOk : Bool;
+      ParameterSetOk : Bool;
+      EffectivePotValid : Bool;
+      ManualActive : Bool;
+      AutoActive : Bool;
+      MotionActive : Bool;
+      SelectedCommand : Real;
+      LimitedSensitivity : Real;
+      AbsoluteVehicleSpeed : Real;
+      SpeedRatio : Real;
+      PositionError : Real;
+      AbsoluteError : Real;
+      TargetDelta : Real;
+      TargetStep : Real;
+      ErrorAvailableForStop : Real;
+      ProportionalVelocity : Real;
+      BrakingVelocity : Real;
+      DesiredJogVelocity : Real;
+      VelocityStep : Real;
+      HardMinRaw : Int;
+      HardMaxRaw : Int;
+   END_VAR
+
+BEGIN
+   // Inhibit bits: 0 not installed, 1 commissioning disabled, 2 calibration,
+   // 3 pot/hard range, 4 servo/common enable, 5 no authority, 6 auto invalid,
+   // 7 servo alarm, 8 invalid parameters, 9 MC error, 10 auto speed invalid.
+   #InhibitReason := 16#0000;
+   #CalibrationOk :=
+      (#PotRawAtMinAngle < #PotRawAtCenter) AND
+      (#PotRawAtCenter < #PotRawAtMaxAngle) AND
+      (#MinAngleDeg < #CenterAngleDeg) AND
+      (#CenterAngleDeg < #MaxAngleDeg) AND
+      (#PotHardLimitMarginRaw >= 0);
+
+   #ParameterSetOk :=
+      (#StopToleranceDeg > 0.0) AND
+      (#RestartToleranceDeg > #StopToleranceDeg) AND
+      (#VelocityGain > 0.0) AND
+      (#MinimumJogVelocityDegPerSec > 0.0) AND
+      (#ManualMinimumRateDegPerSec >= #MinimumJogVelocityDegPerSec) AND
+      (#ManualMaximumRateDegPerSec >= #ManualMinimumRateDegPerSec) AND
+      (#AutoRateAtZeroSpeedDegPerSec >= #MinimumJogVelocityDegPerSec) AND
+      (#AutoRateAtHighSpeedDegPerSec >= #MinimumJogVelocityDegPerSec) AND
+      (#AutoRateHighSpeedMps > 0.0) AND
+      (#VelocityAccelerationDegPerSec2 > 0.0) AND
+      (#VelocityDecelerationDegPerSec2 > 0.0) AND
+      (#CycleTimeSec > 0.0);
+
+   #HardMinRaw := #PotRawAtMinAngle - #PotHardLimitMarginRaw;
+   #HardMaxRaw := #PotRawAtMaxAngle + #PotHardLimitMarginRaw;
+   #EffectivePotValid := #PotSignalValid AND #CalibrationOk AND
+      (#PotRaw >= #HardMinRaw) AND (#PotRaw <= #HardMaxRaw);
+
+   IF NOT #SteeringAxisInstalled THEN
+      #InhibitReason := #InhibitReason OR 16#0001;
+   END_IF;
+   IF NOT #CommissioningEnable THEN
+      #InhibitReason := #InhibitReason OR 16#0002;
+   END_IF;
+   IF NOT #CalibrationOk THEN
+      #InhibitReason := #InhibitReason OR 16#0004;
+   END_IF;
+   IF NOT #EffectivePotValid THEN
+      #InhibitReason := #InhibitReason OR 16#0008;
+   END_IF;
+   IF NOT #ServoEnableAll THEN
+      #InhibitReason := #InhibitReason OR 16#0010;
+   END_IF;
+   IF NOT #SteeringServoAlarmOk THEN
+      #InhibitReason := #InhibitReason OR 16#0080;
+   END_IF;
+   IF NOT #ParameterSetOk THEN
+      #InhibitReason := #InhibitReason OR 16#0100;
+   END_IF;
+   IF #AxisMotionError THEN
+      #InhibitReason := #InhibitReason OR 16#0200;
+   END_IF;
+
+   #ManualActive := #ManualAuthorityGranted;
+   #AutoActive := #AutoAuthorityGranted AND #AutoCommandValid AND
+      #VehicleSpeedValid;
+   IF (NOT #ManualActive) AND (NOT #AutoActive) THEN
+      #InhibitReason := #InhibitReason OR 16#0020;
+   END_IF;
+   IF #AutoAuthorityGranted AND (NOT #AutoCommandValid) THEN
+      #InhibitReason := #InhibitReason OR 16#0040;
+   END_IF;
+   IF #AutoAuthorityGranted AND (NOT #VehicleSpeedValid) THEN
+      #InhibitReason := #InhibitReason OR 16#0400;
+   END_IF;
+
+   // Convert the pot to physical wheel angle. Values inside the hard margin
+   // are intentionally allowed to extrapolate, permitting recovery inward.
+   #ActualAngleDeg := #CenterAngleDeg;
+   IF #CalibrationOk THEN
+      IF #PotRaw >= #PotRawAtCenter THEN
+         #ActualAngleDeg := #CenterAngleDeg +
+            (INT_TO_REAL(#PotRaw - #PotRawAtCenter) *
+            (#MaxAngleDeg - #CenterAngleDeg) /
+            INT_TO_REAL(#PotRawAtMaxAngle - #PotRawAtCenter));
+      ELSE
+         #ActualAngleDeg := #CenterAngleDeg -
+            (INT_TO_REAL(#PotRawAtCenter - #PotRaw) *
+            (#CenterAngleDeg - #MinAngleDeg) /
+            INT_TO_REAL(#PotRawAtCenter - #PotRawAtMinAngle));
+      END_IF;
+   END_IF;
+
+   #LimitedSensitivity := #ManualSteeringSensitivity;
+   IF #LimitedSensitivity < 0.0 THEN
+      #LimitedSensitivity := 0.0;
+   ELSIF #LimitedSensitivity > 1.0 THEN
+      #LimitedSensitivity := 1.0;
+   END_IF;
+
+   #SelectedCommand := #ManualSteeringCommand;
+   IF #SelectedCommand < -1.0 THEN
+      #SelectedCommand := -1.0;
+   ELSIF #SelectedCommand > 1.0 THEN
+      #SelectedCommand := 1.0;
+   END_IF;
+
+   // Manual sensitivity changes response rate, never the available angle.
+   IF #ManualActive THEN
+      IF #SelectedCommand >= 0.0 THEN
+         #DesiredTargetAngleDeg := #CenterAngleDeg +
+            (#SelectedCommand * (#MaxAngleDeg - #CenterAngleDeg));
+      ELSE
+         #DesiredTargetAngleDeg := #CenterAngleDeg +
+            (#SelectedCommand * (#CenterAngleDeg - #MinAngleDeg));
+      END_IF;
+      #EffectiveRateLimitDegPerSec := #ManualMinimumRateDegPerSec +
+         (#LimitedSensitivity *
+         (#ManualMaximumRateDegPerSec - #ManualMinimumRateDegPerSec));
+   ELSIF #AutoActive THEN
+      #DesiredTargetAngleDeg := #AutoTargetAngleDeg;
+      IF #DesiredTargetAngleDeg < #MinAngleDeg THEN
+         #DesiredTargetAngleDeg := #MinAngleDeg;
+      ELSIF #DesiredTargetAngleDeg > #MaxAngleDeg THEN
+         #DesiredTargetAngleDeg := #MaxAngleDeg;
+      END_IF;
+
+      #AbsoluteVehicleSpeed := ABS(#VehicleSpeedMps);
+      #SpeedRatio := #AbsoluteVehicleSpeed / #AutoRateHighSpeedMps;
+      IF #SpeedRatio > 1.0 THEN
+         #SpeedRatio := 1.0;
+      END_IF;
+      #EffectiveRateLimitDegPerSec := #AutoRateAtZeroSpeedDegPerSec -
+         (#SpeedRatio *
+         (#AutoRateAtZeroSpeedDegPerSec - #AutoRateAtHighSpeedDegPerSec));
+   ELSE
+      #DesiredTargetAngleDeg := #ActualAngleDeg;
+      #EffectiveRateLimitDegPerSec := #MinimumJogVelocityDegPerSec;
+   END_IF;
+
+   #MotionActive := #InhibitReason = 16#0000;
+   #Ready := #MotionActive;
+   #AxisPowerEnable := #MotionActive;
+
+   // On every new authority/enable, start the target at the measured angle.
+   // This prevents a stale target from causing an enable-time step movement.
+   IF (NOT #MotionActive) OR (NOT #WasMotionActive) THEN
+      #LimitedTargetAngleDeg := #ActualAngleDeg;
+      #CurrentJogVelocityDegPerSec := #MinimumJogVelocityDegPerSec;
+      #JogState := 0;
+   ELSE
+      #TargetStep := #EffectiveRateLimitDegPerSec * #CycleTimeSec;
+      #TargetDelta := #DesiredTargetAngleDeg - #LimitedTargetAngleDeg;
+      IF #TargetDelta > #TargetStep THEN
+         #LimitedTargetAngleDeg := #LimitedTargetAngleDeg + #TargetStep;
+      ELSIF #TargetDelta < -#TargetStep THEN
+         #LimitedTargetAngleDeg := #LimitedTargetAngleDeg - #TargetStep;
+      ELSE
+         #LimitedTargetAngleDeg := #DesiredTargetAngleDeg;
+      END_IF;
+   END_IF;
+   #WasMotionActive := #MotionActive;
+   #TargetAngleDeg := #LimitedTargetAngleDeg;
+
+   #PositionError := #TargetAngleDeg - #ActualAngleDeg;
+   #AbsoluteError := ABS(#PositionError);
+   #AtTarget := #MotionActive AND (#AbsoluteError <= #StopToleranceDeg);
+
+   // Hysteresis prevents pot noise/backlash from restarting motion as soon as
+   // the axis has entered the stop tolerance.
+   IF NOT #MotionActive THEN
+      #JogState := 0;
+   ELSIF #JogState = 0 THEN
+      IF #PositionError >= #RestartToleranceDeg THEN
+         #JogState := 1;
+      ELSIF #PositionError <= -#RestartToleranceDeg THEN
+         #JogState := -1;
+      END_IF;
+   ELSIF #JogState = 1 THEN
+      IF #PositionError <= #StopToleranceDeg THEN
+         #JogState := 0;
+      END_IF;
+   ELSIF #JogState = -1 THEN
+      IF #PositionError >= -#StopToleranceDeg THEN
+         #JogState := 0;
+      END_IF;
+   ELSE
+      #JogState := 0;
+   END_IF;
+
+   #HardLimitActive := FALSE;
+   IF (#JogState = 1) AND (#PotRaw >= #HardMaxRaw) THEN
+      #JogState := 0;
+      #HardLimitActive := TRUE;
+   ELSIF (#JogState = -1) AND (#PotRaw <= #HardMinRaw) THEN
+      #JogState := 0;
+      #HardLimitActive := TRUE;
+   END_IF;
+
+   // Proportional speed is additionally bounded by estimated stopping speed.
+   #ErrorAvailableForStop := #AbsoluteError - #StopToleranceDeg;
+   IF #ErrorAvailableForStop < 0.0 THEN
+      #ErrorAvailableForStop := 0.0;
+   END_IF;
+   #ProportionalVelocity := #AbsoluteError * #VelocityGain;
+   #BrakingVelocity := SQRT(2.0 * #VelocityDecelerationDegPerSec2 *
+      #ErrorAvailableForStop);
+   #DesiredJogVelocity := #ProportionalVelocity;
+   IF #DesiredJogVelocity > #BrakingVelocity THEN
+      #DesiredJogVelocity := #BrakingVelocity;
+   END_IF;
+   IF #DesiredJogVelocity > #EffectiveRateLimitDegPerSec THEN
+      #DesiredJogVelocity := #EffectiveRateLimitDegPerSec;
+   END_IF;
+   IF #DesiredJogVelocity < #MinimumJogVelocityDegPerSec THEN
+      #DesiredJogVelocity := #MinimumJogVelocityDegPerSec;
+   END_IF;
+
+   IF #JogState = 0 THEN
+      #CurrentJogVelocityDegPerSec := #MinimumJogVelocityDegPerSec;
+   ELSIF #DesiredJogVelocity > #CurrentJogVelocityDegPerSec THEN
+      #VelocityStep := #VelocityAccelerationDegPerSec2 * #CycleTimeSec;
+      #CurrentJogVelocityDegPerSec := #CurrentJogVelocityDegPerSec +
+         #VelocityStep;
+      IF #CurrentJogVelocityDegPerSec > #DesiredJogVelocity THEN
+         #CurrentJogVelocityDegPerSec := #DesiredJogVelocity;
+      END_IF;
+   ELSE
+      #VelocityStep := #VelocityDecelerationDegPerSec2 * #CycleTimeSec;
+      #CurrentJogVelocityDegPerSec := #CurrentJogVelocityDegPerSec -
+         #VelocityStep;
+      IF #CurrentJogVelocityDegPerSec < #DesiredJogVelocity THEN
+         #CurrentJogVelocityDegPerSec := #DesiredJogVelocity;
+      END_IF;
+   END_IF;
+   #JogVelocityDegPerSec := #CurrentJogVelocityDegPerSec;
+
+   #JogPositive := FALSE;
+   #JogNegative := FALSE;
+   IF #MotionActive THEN
+      IF #JogDirectionInvert THEN
+         #JogPositive := #JogState = -1;
+         #JogNegative := #JogState = 1;
+      ELSE
+         #JogPositive := #JogState = 1;
+         #JogNegative := #JogState = -1;
+      END_IF;
+   END_IF;
+
+   "DB_SteeringAxisStatus".Data.Ready := #Ready;
+   "DB_SteeringAxisStatus".Data.MotionEnabled := #MotionActive;
+   "DB_SteeringAxisStatus".Data.CalibrationValid := #CalibrationOk;
+   "DB_SteeringAxisStatus".Data.PotSignalValid := #EffectivePotValid;
+   "DB_SteeringAxisStatus".Data.AxisMotionError := #AxisMotionError;
+   "DB_SteeringAxisStatus".Data.ManualCommandActive := #ManualActive;
+   "DB_SteeringAxisStatus".Data.AutoCommandActive := #AutoActive;
+   "DB_SteeringAxisStatus".Data.SelectedCommand := #SelectedCommand;
+   "DB_SteeringAxisStatus".Data.DesiredTargetAngleDeg :=
+      #DesiredTargetAngleDeg;
+   "DB_SteeringAxisStatus".Data.TargetAngleDeg := #TargetAngleDeg;
+   "DB_SteeringAxisStatus".Data.ActualAngleDeg := #ActualAngleDeg;
+   "DB_SteeringAxisStatus".Data.PositionErrorDeg := #PositionError;
+   "DB_SteeringAxisStatus".Data.AtTarget := #AtTarget;
+   "DB_SteeringAxisStatus".Data.AxisPowerEnable := #AxisPowerEnable;
+   "DB_SteeringAxisStatus".Data.JogPositive := #JogPositive;
+   "DB_SteeringAxisStatus".Data.JogNegative := #JogNegative;
+   "DB_SteeringAxisStatus".Data.JogVelocityDegPerSec :=
+      #JogVelocityDegPerSec;
+   "DB_SteeringAxisStatus".Data.EffectiveRateLimitDegPerSec :=
+      #EffectiveRateLimitDegPerSec;
+   "DB_SteeringAxisStatus".Data.HardLimitActive := #HardLimitActive;
+   "DB_SteeringAxisStatus".Data.InhibitReason := #InhibitReason;
+END_FUNCTION_BLOCK

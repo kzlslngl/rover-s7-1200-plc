@@ -1,0 +1,9 @@
+DATA_BLOCK "DB_ControlledStopStatus"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Data : "UDT_ControlledStopStatus";
+   END_VAR
+BEGIN
+END_DATA_BLOCK

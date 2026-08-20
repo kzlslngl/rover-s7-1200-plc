@@ -1,0 +1,9 @@
+DATA_BLOCK "DB_VehicleHardwareStatus"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Data : "UDT_VehicleHardwareStatus";
+   END_VAR
+BEGIN
+END_DATA_BLOCK

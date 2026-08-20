@@ -1,0 +1,95 @@
+FUNCTION_BLOCK "FB_VehicleHardwareIO"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      EStopChainOkRaw : Bool;
+      SteeringHomeRaw : Bool;
+      ThrottleHomeRaw : Bool;
+      BrakeHomeRaw : Bool;
+      SteeringServoAlarmOkRaw : Bool;
+      ThrottleServoAlarmOkRaw : Bool;
+      BrakeServoAlarmOkRaw : Bool;
+      SteeringPotRaw : Int;
+      ThrottlePotRaw : Int;
+      MotionInhibit : Bool;
+      ServoEnableRequest : Bool;
+      SteeringAxisInstalled : Bool;
+      ThrottleAxisInstalled : Bool;
+      BrakeAxisInstalled : Bool;
+      UseAxisHoming : Bool;
+   END_VAR
+   VAR_OUTPUT
+      SafetyChainOk : Bool;
+      AllInstalledServoAlarmsOk : Bool;
+      ServoEnableAll : Bool;
+   END_VAR
+   VAR_TEMP
+      SteeringRawLimited : Int;
+      ThrottleRawLimited : Int;
+   END_VAR
+
+BEGIN
+   // Alarm inputs use positive logic: TRUE means drive healthy. An axis which
+   // is not installed must not inhibit the installed hardware.
+   #AllInstalledServoAlarmsOk :=
+      ((NOT #SteeringAxisInstalled) OR #SteeringServoAlarmOkRaw) AND
+      ((NOT #ThrottleAxisInstalled) OR #ThrottleServoAlarmOkRaw) AND
+      ((NOT #BrakeAxisInstalled) OR #BrakeServoAlarmOkRaw);
+
+   #SafetyChainOk := #EStopChainOkRaw;
+
+   // The physical E-stop must also remove drive permission in hardware. This
+   // output is only the standard-PLC operational enable shared by all drives.
+   #ServoEnableAll := #ServoEnableRequest AND
+      (NOT #MotionInhibit) AND
+      #SafetyChainOk AND
+      #AllInstalledServoAlarmsOk AND
+      (#SteeringAxisInstalled OR #ThrottleAxisInstalled OR #BrakeAxisInstalled);
+
+   // CPU 1214C onboard AI: 0..27648 represents 0..10 V. Limiting is used only
+   // for voltage display; validity is always calculated from the original raw
+   // value so an overrange is not hidden.
+   #SteeringRawLimited := #SteeringPotRaw;
+   IF #SteeringRawLimited < 0 THEN
+      #SteeringRawLimited := 0;
+   ELSIF #SteeringRawLimited > 27648 THEN
+      #SteeringRawLimited := 27648;
+   END_IF;
+
+   #ThrottleRawLimited := #ThrottlePotRaw;
+   IF #ThrottleRawLimited < 0 THEN
+      #ThrottleRawLimited := 0;
+   ELSIF #ThrottleRawLimited > 27648 THEN
+      #ThrottleRawLimited := 27648;
+   END_IF;
+
+   "DB_VehicleHardwareStatus".Data.EStopChainOk := #SafetyChainOk;
+   "DB_VehicleHardwareStatus".Data.SteeringHome := #SteeringHomeRaw;
+   "DB_VehicleHardwareStatus".Data.ThrottleHome := #ThrottleHomeRaw;
+   "DB_VehicleHardwareStatus".Data.BrakeHome := #BrakeHomeRaw;
+   "DB_VehicleHardwareStatus".Data.SteeringServoAlarmOk :=
+      #SteeringServoAlarmOkRaw;
+   "DB_VehicleHardwareStatus".Data.ThrottleServoAlarmOk :=
+      #ThrottleServoAlarmOkRaw;
+   "DB_VehicleHardwareStatus".Data.BrakeServoAlarmOk :=
+      #BrakeServoAlarmOkRaw;
+   "DB_VehicleHardwareStatus".Data.AllInstalledServoAlarmsOk :=
+      #AllInstalledServoAlarmsOk;
+   "DB_VehicleHardwareStatus".Data.SteeringPotRaw := #SteeringPotRaw;
+   "DB_VehicleHardwareStatus".Data.ThrottlePotRaw := #ThrottlePotRaw;
+   "DB_VehicleHardwareStatus".Data.SteeringPotVoltage :=
+      INT_TO_REAL(#SteeringRawLimited) * 10.0 / 27648.0;
+   "DB_VehicleHardwareStatus".Data.ThrottlePotVoltage :=
+      INT_TO_REAL(#ThrottleRawLimited) * 10.0 / 27648.0;
+   "DB_VehicleHardwareStatus".Data.SteeringPotSignalValid :=
+      (#SteeringPotRaw >= 0) AND (#SteeringPotRaw <= 27648);
+   "DB_VehicleHardwareStatus".Data.ThrottlePotSignalValid :=
+      (#ThrottlePotRaw >= 0) AND (#ThrottlePotRaw <= 27648);
+   "DB_VehicleHardwareStatus".Data.ServoEnableAll := #ServoEnableAll;
+   "DB_VehicleHardwareStatus".Data.SteeringAxisInstalled :=
+      #SteeringAxisInstalled;
+   "DB_VehicleHardwareStatus".Data.ThrottleAxisInstalled :=
+      #ThrottleAxisInstalled;
+   "DB_VehicleHardwareStatus".Data.BrakeAxisInstalled := #BrakeAxisInstalled;
+   "DB_VehicleHardwareStatus".Data.UseAxisHoming := #UseAxisHoming;
+END_FUNCTION_BLOCK

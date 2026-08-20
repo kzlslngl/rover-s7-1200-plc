@@ -1,0 +1,12 @@
+TYPE "UDT_ControlledStopStatus"
+VERSION : 0.1
+   STRUCT
+      Complete : Bool;
+      ConditionsMet : Bool;
+      BenchModeActive : Bool;
+      SpeedStopped : Bool;
+      ThrottleSafe : Bool;
+      HoldingVehicle : Bool;
+      ConfirmationElapsed : Bool;
+   END_STRUCT;
+END_TYPE

@@ -1,0 +1,25 @@
+TYPE "UDT_SteeringAxisStatus"
+VERSION : 0.2
+   STRUCT
+      Ready : Bool;
+      MotionEnabled : Bool;
+      CalibrationValid : Bool;
+      PotSignalValid : Bool;
+      AxisMotionError : Bool;
+      ManualCommandActive : Bool;
+      AutoCommandActive : Bool;
+      SelectedCommand : Real;
+      DesiredTargetAngleDeg : Real;
+      TargetAngleDeg : Real;
+      ActualAngleDeg : Real;
+      PositionErrorDeg : Real;
+      AtTarget : Bool;
+      AxisPowerEnable : Bool;
+      JogPositive : Bool;
+      JogNegative : Bool;
+      JogVelocityDegPerSec : Real;
+      EffectiveRateLimitDegPerSec : Real;
+      HardLimitActive : Bool;
+      InhibitReason : Word;
+   END_STRUCT;
+END_TYPE

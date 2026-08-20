@@ -1,0 +1,24 @@
+TYPE "UDT_VehicleHardwareStatus"
+VERSION : 0.1
+   STRUCT
+      EStopChainOk : Bool;
+      SteeringHome : Bool;
+      ThrottleHome : Bool;
+      BrakeHome : Bool;
+      SteeringServoAlarmOk : Bool;
+      ThrottleServoAlarmOk : Bool;
+      BrakeServoAlarmOk : Bool;
+      AllInstalledServoAlarmsOk : Bool;
+      SteeringPotRaw : Int;
+      ThrottlePotRaw : Int;
+      SteeringPotVoltage : Real;
+      ThrottlePotVoltage : Real;
+      SteeringPotSignalValid : Bool;
+      ThrottlePotSignalValid : Bool;
+      ServoEnableAll : Bool;
+      SteeringAxisInstalled : Bool;
+      ThrottleAxisInstalled : Bool;
+      BrakeAxisInstalled : Bool;
+      UseAxisHoming : Bool;
+   END_STRUCT;
+END_TYPE

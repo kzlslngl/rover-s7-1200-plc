@@ -1,0 +1,64 @@
+FUNCTION_BLOCK "FB_ControlledStopMonitor"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      BenchMode : Bool;
+      MotionInhibit : Bool;
+      DriveTorqueInhibited : Bool;
+      BrakeApplied : Bool;
+      VehicleSpeedValid : Bool;
+      VehicleSpeedMps : Real;
+      StopSpeedThresholdMps : Real;
+      ThrottleFeedbackValid : Bool;
+      ThrottleActualAngleDeg : Real;
+      ThrottleSafeAngleDeg : Real;
+      ThrottleToleranceDeg : Real;
+      ConfirmationTime : Time;
+   END_VAR
+   VAR_OUTPUT
+      ControlledStopComplete : Bool;
+      ConditionsMet : Bool;
+   END_VAR
+   VAR
+      ConfirmationTimer : TON_TIME;
+   END_VAR
+   VAR_TEMP
+      SpeedStopped : Bool;
+      ThrottleSafe : Bool;
+      HoldingVehicle : Bool;
+   END_VAR
+
+BEGIN
+   // Explicit default keeps the output fail-safe and avoids TIA's conditional
+   // assignment warning; the selected mode overwrites it below every scan.
+   #ConditionsMet := FALSE;
+
+   #SpeedStopped := #VehicleSpeedValid AND
+      (ABS(#VehicleSpeedMps) <= #StopSpeedThresholdMps);
+   #ThrottleSafe := #ThrottleFeedbackValid AND
+      (ABS(#ThrottleActualAngleDeg - #ThrottleSafeAngleDeg) <=
+      #ThrottleToleranceDeg);
+   #HoldingVehicle := #DriveTorqueInhibited OR #BrakeApplied;
+
+   IF #BenchMode THEN
+      // BenchMode is permitted only while traction is physically inhibited.
+      // It deliberately does not depend on G16 health, so a G16-loss stop can
+      // still finish and the authority state machine can return to SAFE.
+      #ConditionsMet := #MotionInhibit AND #DriveTorqueInhibited;
+   ELSE
+      #ConditionsMet := #MotionInhibit AND #SpeedStopped AND
+         #ThrottleSafe AND #HoldingVehicle;
+   END_IF;
+
+   #ConfirmationTimer(IN := #ConditionsMet, PT := #ConfirmationTime);
+   #ControlledStopComplete := #ConfirmationTimer.Q;
+
+   "DB_ControlledStopStatus".Data.Complete := #ControlledStopComplete;
+   "DB_ControlledStopStatus".Data.ConditionsMet := #ConditionsMet;
+   "DB_ControlledStopStatus".Data.BenchModeActive := #BenchMode;
+   "DB_ControlledStopStatus".Data.SpeedStopped := #SpeedStopped;
+   "DB_ControlledStopStatus".Data.ThrottleSafe := #ThrottleSafe;
+   "DB_ControlledStopStatus".Data.HoldingVehicle := #HoldingVehicle;
+   "DB_ControlledStopStatus".Data.ConfirmationElapsed :=
+      #ConfirmationTimer.Q;
+END_FUNCTION_BLOCK
