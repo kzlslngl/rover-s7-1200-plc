@@ -1,0 +1,181 @@
+FUNCTION "FC_StagePlcStateModel" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_TEMP
+      OperationalState : UInt;
+      ActiveAuthority : UInt;
+      StatusFlags : Word;
+      G16SummaryFlags : Word;
+      SafetySummaryFlags : Word;
+      FaultBits : DWord;
+      InterlockBits : DWord;
+      AutoContext : Bool;
+   END_VAR
+
+BEGIN
+   // Translate the local authority state machine to protocol v1.1 enums.
+   CASE "DB_AuthorityStatus".Data.State OF
+      0: #OperationalState := 1; // SAFE_DISABLED
+      1: #OperationalState := 7; // CONTROLLED_STOP
+      2: #OperationalState := 2; // MANUAL_ARMING
+      3: #OperationalState := 3; // MANUAL
+      4: #OperationalState := 4; // AUTO_ARMING
+      5: #OperationalState := 6; // AUTONOMOUS_ACTIVE
+      6: #OperationalState := 8; // FAULT_LOCKOUT
+      ELSE
+         #OperationalState := 8;
+   END_CASE;
+
+   // Protocol authority enum is richer than the local 0/1/2 source value.
+   #ActiveAuthority := 0; // SAFE_DISABLED
+   IF "DB_AuthorityStatus".Data.State = 1 THEN
+      #ActiveAuthority := 4; // CONTROLLED_STOP
+   ELSIF "DB_AuthorityStatus".Data.State = 3 THEN
+      #ActiveAuthority := 1; // MANUAL
+   ELSIF "DB_AuthorityStatus".Data.State = 4 THEN
+      #ActiveAuthority := 2; // AUTONOMOUS_READY
+   ELSIF "DB_AuthorityStatus".Data.State = 5 THEN
+      #ActiveAuthority := 3; // AUTONOMOUS_ACTIVE
+   ELSIF "DB_AuthorityStatus".Data.State = 6 THEN
+      #ActiveAuthority := 5; // FAULT_LOCKOUT
+   END_IF;
+
+   #StatusFlags := 16#0000;
+   // Bit 1: STEERING_ANGLE_VALID
+   IF "DB_SteeringAxisStatus".Data.CalibrationValid AND
+      "DB_SteeringAxisStatus".Data.PotSignalValid THEN
+      #StatusFlags := #StatusFlags OR 16#0002;
+   END_IF;
+   // Bit 8: MANUAL_SIGNAL_VALID
+   IF "DB_G16OperationalCommand".Data.Valid THEN
+      #StatusFlags := #StatusFlags OR 16#0100;
+   END_IF;
+   // Bit 9: ORIN_COMMAND_LINK_VALID
+   IF "DB_OrinCommandValidation".Data.DataValid THEN
+      #StatusFlags := #StatusFlags OR 16#0200;
+   END_IF;
+   // Bit 10: G16_VALID
+   IF "DB_ValidatedG16Input".Data.Valid THEN
+      #StatusFlags := #StatusFlags OR 16#0400;
+   END_IF;
+   // Bit 12: CONTROLLED_STOP_ACTIVE
+   IF "DB_AuthorityStatus".Data.ControlledStopActive THEN
+      #StatusFlags := #StatusFlags OR 16#1000;
+   END_IF;
+   // Bit 13 DRIVE_ENABLED remains clear until actual propulsion-drive
+   // enable feedback is commissioned. Common servo enable is not equivalent.
+
+   // SBUS bits 0..4 have identical meanings in the G16 summary field.
+   #G16SummaryFlags := "DB_ValidatedG16Input".Data.SbusFlags AND 16#001F;
+   // Bit 5: CHANNEL_CALIBRATION_VALID
+   IF "DB_G16Controls".Data.Valid AND
+      ("DB_G16Controls".Data.RangeErrorMask = 16#0000) THEN
+      #G16SummaryFlags := #G16SummaryFlags OR 16#0020;
+   END_IF;
+   // Bit 6: MANUAL_READY
+   IF "DB_AuthorityStatus".Data.ManualAuthorityGranted AND
+      (NOT "DB_AuthorityStatus".Data.MotionInhibit) THEN
+      #G16SummaryFlags := #G16SummaryFlags OR 16#0040;
+   END_IF;
+
+   #SafetySummaryFlags := 16#0000;
+   // The bench has one combined E-stop/safety-chain input.
+   IF NOT "DB_VehicleHardwareStatus".Data.EStopChainOk THEN
+      #SafetySummaryFlags := #SafetySummaryFlags OR 16#0001; // ESTOP_ACTIVE
+   ELSE
+      #SafetySummaryFlags := #SafetySummaryFlags OR 16#0002; // SAFETY_RELAY_HEALTHY
+   END_IF;
+   IF "DB_AuthorityStatus".Data.MotionInhibit THEN
+      #SafetySummaryFlags := #SafetySummaryFlags OR 16#0004; // DRIVE_INHIBIT_ACTIVE
+   END_IF;
+
+   #FaultBits := 16#00000000;
+   IF "DB_OrinCommandValidation".Data.TransportError THEN
+      #FaultBits := #FaultBits OR 16#00000004; // ORIN_COMMAND_LINK_FAULT
+   END_IF;
+   IF (NOT "DB_VehicleHardwareStatus".Data.SteeringServoAlarmOk) OR
+      "DB_SteeringAxisStatus".Data.AxisMotionError THEN
+      #FaultBits := #FaultBits OR 16#00000020; // STEERING_FAULT
+   END_IF;
+   IF NOT "DB_VehicleHardwareStatus".Data.EStopChainOk THEN
+      #FaultBits := #FaultBits OR 16#00000400; // SAFETY_CHAIN_FAULT
+   END_IF;
+
+   #InterlockBits := 16#00000000;
+   IF NOT "DB_VehicleHardwareStatus".Data.EStopChainOk THEN
+      #InterlockBits := #InterlockBits OR 16#00000003; // E-stop + relay
+   END_IF;
+   IF NOT "DB_SteeringAxisStatus".Data.Ready THEN
+      #InterlockBits := #InterlockBits OR 16#00000020;
+   END_IF;
+   IF NOT "DB_ValidatedG16Input".Data.Valid THEN
+      #InterlockBits := #InterlockBits OR 16#00000100;
+   END_IF;
+
+   #AutoContext := "DB_AuthorityStatus".Data.WaitingForOrin OR
+      "DB_AuthorityStatus".Data.AutoAuthorityGranted;
+   IF #AutoContext THEN
+      IF NOT "DB_OrinCommandValidation".Data.DataValid THEN
+         #InterlockBits := #InterlockBits OR 16#00000080;
+      END_IF;
+      IF NOT "DB_ValidatedOrinCommand".Data.LocalizationValid THEN
+         #InterlockBits := #InterlockBits OR 16#00000200;
+      END_IF;
+      IF NOT "DB_ValidatedOrinCommand".Data.NavigationHealthy THEN
+         #InterlockBits := #InterlockBits OR 16#00000400;
+      END_IF;
+      IF NOT "DB_ValidatedOrinCommand".Data.GeofenceValid THEN
+         #InterlockBits := #InterlockBits OR 16#00000800;
+      END_IF;
+      IF NOT "DB_ValidatedOrinCommand".Data.MissionTimeValid THEN
+         #InterlockBits := #InterlockBits OR 16#00001000;
+      END_IF;
+   END_IF;
+   IF "DB_AuthorityStatus".Data.WaitingForNeutral THEN
+      #InterlockBits := #InterlockBits OR 16#00002000;
+   END_IF;
+   IF "DB_AuthorityStatus".Data.ControlledStopActive THEN
+      #InterlockBits := #InterlockBits OR 16#00004000;
+   END_IF;
+   IF "DB_OrinCommandValidation".Data.SessionRearmRequired THEN
+      #InterlockBits := #InterlockBits OR 16#00008000;
+   END_IF;
+
+   "DB_PlcStateModel".Data.PlcSessionId :=
+      "DB_PlcSessionStatus".Data.SessionId;
+   "DB_PlcStateModel".Data.OperationalState := #OperationalState;
+   "DB_PlcStateModel".Data.ActiveAuthority := #ActiveAuthority;
+   "DB_PlcStateModel".Data.StatusFlags := #StatusFlags;
+   "DB_PlcStateModel".Data.CommandRejectReason :=
+      "DB_OrinCommandValidation".Data.RejectReason;
+   "DB_PlcStateModel".Data.FaultBits := #FaultBits;
+   "DB_PlcStateModel".Data.InterlockBits := #InterlockBits;
+   "DB_PlcStateModel".Data.AcceptedOrinSessionId :=
+      "DB_OrinCommandValidation".Data.AcceptedSessionId;
+   "DB_PlcStateModel".Data.AcceptedCommandSequence :=
+      "DB_ValidatedOrinCommand".Data.CommandSequence;
+   "DB_PlcStateModel".Data.CommandAgeMs :=
+      "DB_OrinCommandValidation".Data.CommandAgeMs;
+   "DB_PlcStateModel".Data.OrinHeartbeatAgeMs :=
+      "DB_OrinCommandValidation".Data.HeartbeatAgeMs;
+
+   // Speed/throttle/brake/wheel feedback remains invalid until its physical
+   // feedback and unit calibration are commissioned.
+   "DB_PlcStateModel".Data.ActualSpeedMps := 0.0;
+   "DB_PlcStateModel".Data.ActualSteeringAngleRad :=
+      "DB_SteeringAxisStatus".Data.ActualAngleDeg * REAL#0.0174533;
+   "DB_PlcStateModel".Data.ThrottlePositionPercent := 0.0;
+   "DB_PlcStateModel".Data.BrakePositionPercent := 0.0;
+   "DB_PlcStateModel".Data.BrakeEffectValue := 0.0;
+   "DB_PlcStateModel".Data.LeftWheelSpeedMps := 0.0;
+   "DB_PlcStateModel".Data.RightWheelSpeedMps := 0.0;
+
+   "DB_PlcStateModel".Data.G16SummaryFlags := #G16SummaryFlags;
+   "DB_PlcStateModel".Data.SafetySummaryFlags := #SafetySummaryFlags;
+   "DB_PlcStateModel".Data.G16FrameAgeMs :=
+      UINT_TO_DWORD("DB_ValidatedG16Input".Data.FrameAgeMs);
+   "DB_PlcStateModel".Data.G16FrameCounter :=
+      "DB_ValidatedG16Input".Data.SbusFrameCounter;
+
+   #FC_StagePlcStateModel := TRUE;
+END_FUNCTION

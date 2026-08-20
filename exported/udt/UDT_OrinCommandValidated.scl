@@ -1,0 +1,26 @@
+TYPE "UDT_OrinCommandValidated"
+VERSION : 0.1
+   STRUCT
+      Valid : Bool;
+      SessionId : DWord;
+      HeartbeatCounter : DWord;
+      CommandSequence : DWord;
+      OrinMonotonicMs : DWord;
+      RequestedMode : UInt;
+      CommandFlags : Word;
+      CommandValid : Bool;
+      AutonomousRequest : Bool;
+      ControlledStopRequest : Bool;
+      LocalizationValid : Bool;
+      NavigationHealthy : Bool;
+      GeofenceValid : Bool;
+      MissionTimeValid : Bool;
+      TargetSpeedMps : Real;
+      TargetSteeringAngleRad : Real;
+      AccelerationLimitMps2 : Real;
+      DecelerationLimitMps2 : Real;
+      SteeringRateLimitRadps : Real;
+      MissionSpeedLimitMps : Real;
+      CommandValidityMs : DWord;
+   END_STRUCT;
+END_TYPE

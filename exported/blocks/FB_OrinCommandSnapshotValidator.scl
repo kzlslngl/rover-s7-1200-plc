@@ -1,0 +1,364 @@
+FUNCTION_BLOCK "FB_OrinCommandSnapshotValidator"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.5
+   VAR_INPUT
+      NewDataReady : Bool;
+      Raw : Array[0..63] of Word;
+      SessionRearm : Bool;
+      HeartbeatTimeout : Time;
+      CommandTimeout : Time;
+      LimitsValid : Bool;
+      MaxCommandValidityMs : DWord;
+      MaxForwardSpeedMps : Real;
+      MaxReverseSpeedMps : Real;
+      MaxSteeringAngleRad : Real;
+      MaxAccelerationMps2 : Real;
+      MaxDecelerationMps2 : Real;
+      MaxSteeringRateRadps : Real;
+      MaxMissionSpeedMps : Real;
+   END_VAR
+   VAR_OUTPUT
+      SnapshotValid : Bool;
+      RejectReason : UInt;
+      CalculatedCrc : DWord;
+      WireCrc : DWord;
+      SeenSessionId : DWord;
+      SeenCommandSequence : DWord;
+      SessionRearmRequired : Bool;
+      HeartbeatFresh : Bool;
+      CommandFresh : Bool;
+      PayloadValid : Bool;
+      CommandValidityFresh : Bool;
+      DataValid : Bool;
+   END_VAR
+   VAR
+      HeartbeatWatchdog : TON_TIME;
+      CommandWatchdog : TON_TIME;
+      CommandValidityWatchdog : TON_TIME;
+      HaveSeenSessionState : Bool;
+      SeenSessionState : DWord;
+      AcceptedSessionState : DWord;
+      LastHeartbeatState : DWord;
+      LastCommandSequenceState : DWord;
+      SessionRearmRequiredState : Bool;
+      SessionRearmPrevious : Bool;
+      RejectReasonState : UInt;
+      PayloadValidState : Bool;
+      LatestSnapshotRejectedState : Bool;
+      HaveAcceptedPayloadState : Bool;
+      AcceptedCommandValidityTime : Time;
+   END_VAR
+   VAR_TEMP
+      BeginSequence : DWord;
+      EndSequence : DWord;
+      SessionId : DWord;
+      Heartbeat : DWord;
+      CommandSequence : DWord;
+      ReservedIndex : Int;
+      ReservedOk : Bool;
+      StructuralValid : Bool;
+      SessionChanged : Bool;
+      RearmRising : Bool;
+      HeartbeatProgressedThisScan : Bool;
+      CommandProgressedThisScan : Bool;
+      SequenceDelta : DWord;
+      FiniteOk : Bool;
+      ModeFlagsOk : Bool;
+      RangeOk : Bool;
+      CommandValidityMsValue : DWord;
+      PayloadAcceptedThisScan : Bool;
+      BenchModeOk : Bool;
+      Decoded : "UDT_OrinCommandValidated";
+   END_VAR
+
+BEGIN
+   // Diagnostics-only phase: a structurally valid snapshot is decoded, but
+   // typed Data.Valid remains FALSE until session/freshness/range guards exist.
+   #SnapshotValid := FALSE;
+   #StructuralValid := FALSE;
+   #HeartbeatProgressedThisScan := FALSE;
+   #CommandProgressedThisScan := FALSE;
+   #PayloadAcceptedThisScan := FALSE;
+   #RearmRising := #SessionRearm AND NOT #SessionRearmPrevious;
+   #SessionRearmPrevious := #SessionRearm;
+
+   IF #NewDataReady THEN
+      #PayloadValidState := FALSE;
+      #LatestSnapshotRejectedState := TRUE;
+      #BeginSequence := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[4], LowWord := #Raw[5]);
+      #EndSequence := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[62], LowWord := #Raw[63]);
+      #SessionId := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[6], LowWord := #Raw[7]);
+      #Heartbeat := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[8], LowWord := #Raw[9]);
+      #CommandSequence := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[10], LowWord := #Raw[11]);
+      #WireCrc := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[60], LowWord := #Raw[61]);
+      #CalculatedCrc := "FC_Crc32IsoHdlc"(
+         Registers := #Raw, RegisterCount := 60);
+      #SeenSessionId := #SessionId;
+      #SeenCommandSequence := #CommandSequence;
+
+      #ReservedOk := TRUE;
+      FOR #ReservedIndex := 30 TO 59 DO
+         IF #Raw[#ReservedIndex] <> 0 THEN
+            #ReservedOk := FALSE;
+         END_IF;
+      END_FOR;
+
+      // Deterministic contract order: snapshot shape, version, then CRC.
+      IF (#Raw[0] <> 16#5243) OR (#Raw[3] <> 64) OR
+         (#BeginSequence <> #EndSequence) OR NOT #ReservedOk THEN
+         #RejectReasonState := 3; // INVALID_SNAPSHOT
+      ELSIF (#Raw[1] <> 1) OR (#Raw[2] <> 1) THEN
+         #RejectReasonState := 2; // PROTOCOL_MISMATCH
+      ELSIF #CalculatedCrc <> #WireCrc THEN
+         #RejectReasonState := 4; // CRC_ERROR
+      ELSE
+         #StructuralValid := TRUE;
+         #SnapshotValid := TRUE;
+
+         #SessionChanged := (NOT #HaveSeenSessionState) OR
+            (#SessionId <> #SeenSessionState);
+         IF #SessionChanged THEN
+            #HaveSeenSessionState := TRUE;
+            #SeenSessionState := #SessionId;
+            #SessionRearmRequiredState := TRUE;
+            #LastHeartbeatState := #Heartbeat;
+            #LastCommandSequenceState := #CommandSequence;
+            #HeartbeatProgressedThisScan := TRUE;
+            #CommandProgressedThisScan := TRUE;
+         ELSE
+            IF #Heartbeat <> #LastHeartbeatState THEN
+               #LastHeartbeatState := #Heartbeat;
+               #HeartbeatProgressedThisScan := TRUE;
+            END_IF;
+
+            IF #CommandSequence <> #LastCommandSequenceState THEN
+               #SequenceDelta := #CommandSequence - #LastCommandSequenceState;
+               IF #SequenceDelta < 16#80000000 THEN
+                  #LastCommandSequenceState := #CommandSequence;
+                  #CommandProgressedThisScan := TRUE;
+               ELSE
+                  #RejectReasonState := 8; // SEQUENCE_NOT_ADVANCING
+                  #StructuralValid := FALSE;
+               END_IF;
+            END_IF;
+         END_IF;
+
+         IF #SessionRearmRequiredState THEN
+            #RejectReasonState := 5; // SESSION_CHANGED_REARM_REQUIRED
+         ELSIF #StructuralValid THEN
+            #RejectReasonState := 0; // NONE_ACCEPTED
+            #AcceptedSessionState := #SessionId;
+         END_IF;
+
+         // Decode into a temporary typed image. The accepted DB is updated
+         // atomically only after every payload guard succeeds.
+         #Decoded.Valid := FALSE;
+         #Decoded.SessionId := #SessionId;
+         #Decoded.HeartbeatCounter := #Heartbeat;
+         #Decoded.CommandSequence := #CommandSequence;
+         #Decoded.OrinMonotonicMs :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[12], LowWord := #Raw[13]);
+         #Decoded.RequestedMode := WORD_TO_UINT(#Raw[14]);
+         #Decoded.CommandFlags := #Raw[15];
+         #Decoded.CommandValid :=
+            (#Raw[15] AND 16#0001) <> 0;
+         #Decoded.AutonomousRequest :=
+            (#Raw[15] AND 16#0002) <> 0;
+         #Decoded.ControlledStopRequest :=
+            (#Raw[15] AND 16#0004) <> 0;
+         #Decoded.LocalizationValid :=
+            (#Raw[15] AND 16#0008) <> 0;
+         #Decoded.NavigationHealthy :=
+            (#Raw[15] AND 16#0010) <> 0;
+         #Decoded.GeofenceValid :=
+            (#Raw[15] AND 16#0020) <> 0;
+         #Decoded.MissionTimeValid :=
+            (#Raw[15] AND 16#0040) <> 0;
+         #Decoded.TargetSpeedMps :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[16], LowWord := #Raw[17]);
+         #Decoded.TargetSteeringAngleRad :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[18], LowWord := #Raw[19]);
+         #Decoded.AccelerationLimitMps2 :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[20], LowWord := #Raw[21]);
+         #Decoded.DecelerationLimitMps2 :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[22], LowWord := #Raw[23]);
+         #Decoded.SteeringRateLimitRadps :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[24], LowWord := #Raw[25]);
+         #Decoded.MissionSpeedLimitMps :=
+            "FC_ReadReal32BigEndian"(HighWord := #Raw[26], LowWord := #Raw[27]);
+         #Decoded.CommandValidityMs :=
+            "FC_ReadU32BigEndian"(HighWord := #Raw[28], LowWord := #Raw[29]);
+
+         #CommandValidityMsValue := #Decoded.CommandValidityMs;
+         #FiniteOk :=
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[16], LowWord := #Raw[17]) AND
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[18], LowWord := #Raw[19]) AND
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[20], LowWord := #Raw[21]) AND
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[22], LowWord := #Raw[23]) AND
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[24], LowWord := #Raw[25]) AND
+            "FC_IsFiniteReal32BigEndian"(
+               HighWord := #Raw[26], LowWord := #Raw[27]);
+
+         #ModeFlagsOk :=
+            ((#Raw[15] AND 16#FF80) = 0) AND
+            ((#Raw[15] AND 16#0001) <> 0) AND
+            (WORD_TO_UINT(#Raw[14]) <= 3);
+
+         CASE WORD_TO_UINT(#Raw[14]) OF
+            0: // SAFE_DISABLED
+               #ModeFlagsOk := #ModeFlagsOk AND
+                  ((#Raw[15] AND 16#0006) = 0);
+            1, 2: // AUTONOMOUS_READY / AUTONOMOUS_ACTIVE
+               #ModeFlagsOk := #ModeFlagsOk AND
+                  ((#Raw[15] AND 16#0002) <> 0) AND
+                  ((#Raw[15] AND 16#0004) = 0);
+            3: // CONTROLLED_STOP
+               #ModeFlagsOk := #ModeFlagsOk AND
+                  ((#Raw[15] AND 16#0004) <> 0) AND
+                  ((#Raw[15] AND 16#0002) = 0);
+         END_CASE;
+
+         #RangeOk := #LimitsValid AND
+            (#MaxCommandValidityMs > 16#00000000) AND
+            (#CommandValidityMsValue > 16#00000000) AND
+            (#CommandValidityMsValue <= #MaxCommandValidityMs) AND
+            (#MaxForwardSpeedMps > 0.0) AND
+            (#MaxReverseSpeedMps > 0.0) AND
+            (#MaxSteeringAngleRad > 0.0) AND
+            (#MaxAccelerationMps2 > 0.0) AND
+            (#MaxDecelerationMps2 > 0.0) AND
+            (#MaxSteeringRateRadps > 0.0) AND
+            (#MaxMissionSpeedMps > 0.0) AND
+            (#Decoded.TargetSpeedMps <=
+               #MaxForwardSpeedMps) AND
+            (#Decoded.TargetSpeedMps >=
+               -#MaxReverseSpeedMps) AND
+            (ABS(#Decoded.TargetSteeringAngleRad) <=
+               #MaxSteeringAngleRad) AND
+            (#Decoded.AccelerationLimitMps2 > 0.0) AND
+            (#Decoded.AccelerationLimitMps2 <=
+               #MaxAccelerationMps2) AND
+            (#Decoded.DecelerationLimitMps2 > 0.0) AND
+            (#Decoded.DecelerationLimitMps2 <=
+               #MaxDecelerationMps2) AND
+            (#Decoded.SteeringRateLimitRadps > 0.0) AND
+            (#Decoded.SteeringRateLimitRadps <=
+               #MaxSteeringRateRadps) AND
+            (#Decoded.MissionSpeedLimitMps > 0.0) AND
+            (#Decoded.MissionSpeedLimitMps <=
+               #MaxMissionSpeedMps);
+
+         // AUTO remains deliberately blocked in this bench phase. Only
+         // SAFE_DISABLED and CONTROLLED_STOP can become DataValid.
+         #BenchModeOk := (#Decoded.RequestedMode = 0) OR
+            (#Decoded.RequestedMode = 3);
+
+         IF NOT #FiniteOk THEN
+            #RejectReasonState := 9; // VALUE_NOT_FINITE
+         ELSIF NOT #ModeFlagsOk THEN
+            #RejectReasonState := 3; // INVALID_SNAPSHOT
+         ELSIF NOT #LimitsValid THEN
+            #RejectReasonState := 16; // INTERLOCK_ACTIVE
+         ELSIF NOT #RangeOk THEN
+            #RejectReasonState := 10; // VALUE_OUT_OF_RANGE
+         ELSIF NOT #BenchModeOk THEN
+            #RejectReasonState := 11; // AUTONOMY_NOT_PERMITTED
+         ELSIF NOT #SessionRearmRequiredState AND #StructuralValid THEN
+            #PayloadValidState := TRUE;
+            #LatestSnapshotRejectedState := FALSE;
+            #RejectReasonState := 0;
+            IF #CommandProgressedThisScan THEN
+               #Decoded.Valid := FALSE;
+               "DB_ValidatedOrinCommand".Data := #Decoded;
+               #HaveAcceptedPayloadState := TRUE;
+               #PayloadAcceptedThisScan := TRUE;
+               #AcceptedCommandValidityTime := DINT_TO_TIME(
+                  DWORD_TO_DINT(#CommandValidityMsValue));
+            END_IF;
+         END_IF;
+      END_IF;
+
+      IF #LatestSnapshotRejectedState THEN
+         #HaveAcceptedPayloadState := FALSE;
+      END_IF;
+
+      "DB_OrinCommandValidation".Data.SnapshotValid := #SnapshotValid;
+      "DB_OrinCommandValidation".Data.CalculatedCrc := #CalculatedCrc;
+      "DB_OrinCommandValidation".Data.WireCrc := #WireCrc;
+      "DB_OrinCommandValidation".Data.LastSeenSessionId := #SessionId;
+      "DB_OrinCommandValidation".Data.LastHeartbeat := #Heartbeat;
+      "DB_OrinCommandValidation".Data.LastCommandSequence := #CommandSequence;
+   END_IF;
+
+   // A rising re-arm edge acknowledges only a session already observed by a
+   // structurally valid snapshot. Holding the input TRUE across a future
+   // session change cannot silently acknowledge that new session.
+   IF #RearmRising AND #HaveSeenSessionState THEN
+      #SessionRearmRequiredState := FALSE;
+      #AcceptedSessionState := #SeenSessionState;
+      #RejectReasonState := 0;
+   END_IF;
+
+   #HeartbeatWatchdog(
+      IN := #HaveSeenSessionState AND NOT #HeartbeatProgressedThisScan,
+      PT := #HeartbeatTimeout);
+   #CommandWatchdog(
+      IN := #HaveSeenSessionState AND NOT #CommandProgressedThisScan,
+      PT := #CommandTimeout);
+   #CommandValidityWatchdog(
+      IN := #HaveAcceptedPayloadState AND NOT #PayloadAcceptedThisScan,
+      PT := #AcceptedCommandValidityTime);
+
+   #HeartbeatFresh := #HaveSeenSessionState AND NOT #HeartbeatWatchdog.Q;
+   #CommandFresh := #HaveSeenSessionState AND NOT #CommandWatchdog.Q;
+   #CommandValidityFresh := #HaveAcceptedPayloadState AND
+      NOT #CommandValidityWatchdog.Q;
+
+   IF #SessionRearmRequiredState THEN
+      #RejectReasonState := 5;
+   ELSIF (NOT #LatestSnapshotRejectedState) AND #HeartbeatWatchdog.Q THEN
+      #RejectReasonState := 6; // HEARTBEAT_STALE
+   ELSIF (NOT #LatestSnapshotRejectedState) AND #CommandWatchdog.Q THEN
+      #RejectReasonState := 7; // COMMAND_STALE
+   ELSIF (NOT #LatestSnapshotRejectedState) AND
+      #CommandValidityWatchdog.Q THEN
+      #RejectReasonState := 7; // COMMAND_STALE
+   END_IF;
+
+   #DataValid := #HaveAcceptedPayloadState AND #PayloadValidState AND
+      (NOT #LatestSnapshotRejectedState) AND
+      (NOT #SessionRearmRequiredState) AND #HeartbeatFresh AND
+      #CommandFresh AND #CommandValidityFresh;
+   "DB_ValidatedOrinCommand".Data.Valid := #DataValid;
+
+   #SeenSessionId := #SeenSessionState;
+   #SeenCommandSequence := #LastCommandSequenceState;
+   #SessionRearmRequired := #SessionRearmRequiredState;
+   #PayloadValid := #PayloadValidState;
+   #RejectReason := #RejectReasonState;
+
+   "DB_OrinCommandValidation".Data.DataValid := #DataValid;
+   "DB_OrinCommandValidation".Data.RejectReason := #RejectReasonState;
+   "DB_OrinCommandValidation".Data.LastSeenSessionId := #SeenSessionState;
+   "DB_OrinCommandValidation".Data.AcceptedSessionId := #AcceptedSessionState;
+   "DB_OrinCommandValidation".Data.LastHeartbeat := #LastHeartbeatState;
+   "DB_OrinCommandValidation".Data.LastCommandSequence :=
+      #LastCommandSequenceState;
+   "DB_OrinCommandValidation".Data.HeartbeatAgeMs :=
+      DINT_TO_DWORD(TIME_TO_DINT(#HeartbeatWatchdog.ET));
+   "DB_OrinCommandValidation".Data.CommandAgeMs :=
+      DINT_TO_DWORD(TIME_TO_DINT(#CommandWatchdog.ET));
+   "DB_OrinCommandValidation".Data.SessionRearmRequired :=
+      #SessionRearmRequiredState;
+END_FUNCTION_BLOCK

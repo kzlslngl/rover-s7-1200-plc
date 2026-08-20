@@ -1,0 +1,15 @@
+FUNCTION "FC_StageOrinCommand" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      RegisterIndex : Int;
+   END_VAR
+
+BEGIN
+   // Snapshot the MB_SERVER command region once per scan. Validators and
+   // control logic must never read the live raw transport DB directly.
+   FOR #RegisterIndex := 0 TO 63 DO
+      "DB_OrinCommandStagingRaw".Registers[#RegisterIndex] :=
+         "DB_ModbusServerRaw".Holding[#RegisterIndex];
+   END_FOR;
+END_FUNCTION

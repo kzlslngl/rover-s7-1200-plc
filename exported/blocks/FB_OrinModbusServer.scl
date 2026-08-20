@@ -1,0 +1,42 @@
+FUNCTION_BLOCK "FB_OrinModbusServer"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      InterfaceId : HW_ANY;
+   END_VAR
+   VAR_OUTPUT
+      NewDataReady : Bool;
+      DataRead : Bool;
+      Error : Bool;
+      Status : Word;
+   END_VAR
+   VAR
+      Server : MB_SERVER;
+      Connect : TCON_IP_v4;
+   END_VAR
+
+BEGIN
+   // Passive Modbus TCP server for the Orin connection. Connection ID 2 is
+   // distinct from the ESP MB_CLIENT connection ID 1.
+   #Connect.InterfaceId := #InterfaceId;
+   #Connect.ID := 16#0002;
+   #Connect.ConnectionType := 16#0B; // TCP
+   #Connect.ActiveEstablished := FALSE;
+   #Connect.RemoteAddress.ADDR[1] := 0;
+   #Connect.RemoteAddress.ADDR[2] := 0;
+   #Connect.RemoteAddress.ADDR[3] := 0;
+   #Connect.RemoteAddress.ADDR[4] := 0;
+   #Connect.RemotePort := 0;
+   #Connect.LocalPort := 502;
+
+   #Server(
+      DISCONNECT := NOT #Enable,
+      CONNECT := #Connect,
+      MB_HOLD_REG := "DB_ModbusServerRaw".Holding,
+      NDR => #NewDataReady,
+      DR => #DataRead,
+      ERROR => #Error,
+      STATUS => #Status
+   );
+END_FUNCTION_BLOCK

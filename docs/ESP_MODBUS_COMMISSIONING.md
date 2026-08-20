@@ -64,6 +64,7 @@ PollDone                := FB_EspGatewayClient.Done
 PollError               := FB_EspGatewayClient.Error
 Raw                     := DB_EspGatewayRx.Registers
 MaxFrameAgeMs           := 100
+G16FrameTimeout         := T#250ms
 PollTimeout             := T#500ms
 RequiredHealthySnapshots := 3
 ```
@@ -71,6 +72,7 @@ RequiredHealthySnapshots := 3
 İzlenecek temel alanlar:
 
 - `DataValid`: üç ardışık sağlıklı snapshot sonrasında `TRUE`
+- `FrameCounterFresh`: kullanılabilir SBUS frame sayacı timeout içinde ilerliyor
 - `RejectBits`: sağlıklı durumda `16#0000`
 - `CalculatedCrc = WireCrc`
 - `HealthySnapshotCount = 3`
@@ -89,6 +91,7 @@ RequiredHealthySnapshots := 3
 | 5 | `16#0020` | SBUS valid/alive/lost/failsafe/fault hatası |
 | 6 | `16#0040` | Kanal sayısı/maskesi veya frame age hatası |
 | 7 | `16#0080` | Reserved register sıfır değil |
+| 8 | `16#0100` | SBUS frame counter yapılandırılmış süre içinde ilerlemedi |
 
 Validator `DataValid=TRUE` üretse bile bu aşamada veri aktüatörlere
 bağlanmayacaktır. Kanal mapping, neutral/deadband kalibrasyonu ve authority
@@ -97,6 +100,14 @@ state machine ayrı güvenlik kapılarıdır.
 PLC, ESP'nin snapshot üretiminden hızlı poll yaparsa aynı sequence tekrar
 okunabilir. Byte-identical duplicate snapshot hata değildir: kabul sayacını
 artırmaz, fakat son geçerli veri `PollTimeout` dolana kadar korunur.
+
+`gateway_heartbeat` ve snapshot sequence yaklaşık 20 ms'de bir ilerleyebilir;
+`sbus_frame_counter` ise yalnız yeni kullanılabilir SBUS frame geldiğinde
+ilerler. Validator bu sayacı ayrı bir PLC-local watchdog ile izler. Bench için
+başlangıç değeri `T#250ms`'dir; production değeri HIL sonucunda
+`DB_ActiveConfig.G16FrameTimeoutMs` üzerinden yönetilecektir. Counter timeout
+sonrasında veri yeniden akmaya başladığında `RequiredHealthySnapshots` şartı
+baştan kurulur.
 
 ## 2026-08-13 canlı ESP kanıtı
 

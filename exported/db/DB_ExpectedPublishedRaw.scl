@@ -1,0 +1,10 @@
+DATA_BLOCK "DB_ExpectedPublishedRaw"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Registers : Array[64..319] of Word;
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK

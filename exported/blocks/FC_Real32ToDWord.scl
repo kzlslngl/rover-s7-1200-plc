@@ -1,0 +1,17 @@
+FUNCTION "FC_Real32ToDWord" : DWord
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   VAR_INPUT
+      Value : Real;
+   END_VAR
+   VAR_TEMP
+      RealValue : Real;
+      Bits AT RealValue : DWord;
+   END_VAR
+
+BEGIN
+   // Reinterpret the IEEE-754 bit pattern; this is not a numeric conversion.
+   // AT overlay requires standard (non-optimized) access.
+   #RealValue := #Value;
+   #FC_Real32ToDWord := #Bits;
+END_FUNCTION

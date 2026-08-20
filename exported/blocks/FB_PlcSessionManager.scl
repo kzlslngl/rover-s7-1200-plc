@@ -1,0 +1,41 @@
+FUNCTION_BLOCK "FB_PlcSessionManager"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_OUTPUT
+      Initialized : Bool;
+      NewSessionPulse : Bool;
+      BootCounter : DWord;
+      PlcSessionId : DWord;
+   END_VAR
+   VAR
+      InitializedState : Bool;
+      PlcSessionIdState : DWord;
+   END_VAR
+
+BEGIN
+   #NewSessionPulse := FALSE;
+
+   // Instance state is non-retentive. Therefore this branch executes exactly
+   // once after CPU startup while the dedicated boot counter survives restart.
+   IF NOT #InitializedState THEN
+      "DB_PlcBootRetain".BootCounter :=
+         "DB_PlcBootRetain".BootCounter + 16#00000001;
+      IF "DB_PlcBootRetain".BootCounter = 16#00000000 THEN
+         "DB_PlcBootRetain".BootCounter := 16#00000001;
+      END_IF;
+
+      #PlcSessionIdState := "DB_PlcBootRetain".BootCounter;
+      #InitializedState := TRUE;
+      #NewSessionPulse := TRUE;
+   END_IF;
+
+   #Initialized := #InitializedState;
+   #BootCounter := "DB_PlcBootRetain".BootCounter;
+   #PlcSessionId := #PlcSessionIdState;
+
+   "DB_PlcSessionStatus".Data.Initialized := #InitializedState;
+   "DB_PlcSessionStatus".Data.NewSessionPulse := #NewSessionPulse;
+   "DB_PlcSessionStatus".Data.BootCounter :=
+      "DB_PlcBootRetain".BootCounter;
+   "DB_PlcSessionStatus".Data.SessionId := #PlcSessionIdState;
+END_FUNCTION_BLOCK

@@ -1,0 +1,10 @@
+DATA_BLOCK "DB_ValidatedOrinCommand"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Data : "UDT_OrinCommandValidated";
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK

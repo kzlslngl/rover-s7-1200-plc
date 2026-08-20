@@ -1,0 +1,19 @@
+FUNCTION "FC_ReadReal32BigEndian" : Real
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   VAR_INPUT
+      HighWord : Word;
+      LowWord : Word;
+   END_VAR
+   VAR_TEMP
+      Bits : DWord;
+      Value AT Bits : Real;
+   END_VAR
+
+BEGIN
+   // Reinterpret the IEEE-754 bit pattern; this is not a numeric DWord-to-Real
+   // conversion. AT overlay requires standard (non-optimized) access.
+   #Bits := SHL(IN := WORD_TO_DWORD(#HighWord), N := 16)
+      OR WORD_TO_DWORD(#LowWord);
+   #FC_ReadReal32BigEndian := #Value;
+END_FUNCTION

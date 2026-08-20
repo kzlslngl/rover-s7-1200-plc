@@ -1,0 +1,10 @@
+DATA_BLOCK "DB_ModbusServerRaw"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Holding : Array[0..319] of Word;
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK

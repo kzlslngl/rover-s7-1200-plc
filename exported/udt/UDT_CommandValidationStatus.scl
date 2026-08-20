@@ -1,0 +1,19 @@
+TYPE "UDT_CommandValidationStatus"
+VERSION : 0.1
+   STRUCT
+      SnapshotValid : Bool;
+      DataValid : Bool;
+      RejectReason : UInt;
+      CalculatedCrc : DWord;
+      WireCrc : DWord;
+      LastSeenSessionId : DWord;
+      AcceptedSessionId : DWord;
+      LastHeartbeat : DWord;
+      LastCommandSequence : DWord;
+      HeartbeatAgeMs : DWord;
+      CommandAgeMs : DWord;
+      SessionRearmRequired : Bool;
+      TransportError : Bool;
+      TransportStatus : Word;
+   END_STRUCT;
+END_TYPE

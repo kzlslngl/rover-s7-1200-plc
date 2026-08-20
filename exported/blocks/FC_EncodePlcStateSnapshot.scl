@@ -1,0 +1,91 @@
+FUNCTION "FC_EncodePlcStateSnapshot" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Model : "UDT_PlcStateModel";
+      Sequence : DWord;
+   END_VAR
+   VAR_IN_OUT
+      Frame : Array[0..63] of Word;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+      Bits : DWord;
+      Crc : DWord;
+   END_VAR
+
+BEGIN
+   // Clear the entire protocol frame, including all reserved registers.
+   FOR #Index := 0 TO 63 DO
+      #Frame[#Index] := 16#0000;
+   END_FOR;
+
+   #Frame[0] := 16#5253; // "RS"
+   #Frame[1] := 1;       // Protocol major
+   #Frame[2] := 1;       // Protocol minor
+   #Frame[3] := 64;      // Register count
+
+   #Frame[4] := DWORD_TO_WORD(SHR(IN := #Sequence, N := 16));
+   #Frame[5] := DWORD_TO_WORD(#Sequence);
+   #Frame[6] := DWORD_TO_WORD(SHR(IN := #Model.PlcSessionId, N := 16));
+   #Frame[7] := DWORD_TO_WORD(#Model.PlcSessionId);
+   #Frame[8] := DWORD_TO_WORD(SHR(IN := #Model.HeartbeatCounter, N := 16));
+   #Frame[9] := DWORD_TO_WORD(#Model.HeartbeatCounter);
+   #Frame[10] := DWORD_TO_WORD(SHR(IN := #Model.PlcMonotonicMs, N := 16));
+   #Frame[11] := DWORD_TO_WORD(#Model.PlcMonotonicMs);
+   #Frame[12] := UINT_TO_WORD(#Model.OperationalState);
+   #Frame[13] := UINT_TO_WORD(#Model.ActiveAuthority);
+   #Frame[14] := #Model.StatusFlags;
+   #Frame[15] := UINT_TO_WORD(#Model.CommandRejectReason);
+
+   #Frame[16] := DWORD_TO_WORD(SHR(IN := #Model.FaultBits, N := 16));
+   #Frame[17] := DWORD_TO_WORD(#Model.FaultBits);
+   #Frame[18] := DWORD_TO_WORD(SHR(IN := #Model.InterlockBits, N := 16));
+   #Frame[19] := DWORD_TO_WORD(#Model.InterlockBits);
+   #Frame[20] := DWORD_TO_WORD(SHR(IN := #Model.AcceptedOrinSessionId, N := 16));
+   #Frame[21] := DWORD_TO_WORD(#Model.AcceptedOrinSessionId);
+   #Frame[22] := DWORD_TO_WORD(SHR(IN := #Model.AcceptedCommandSequence, N := 16));
+   #Frame[23] := DWORD_TO_WORD(#Model.AcceptedCommandSequence);
+   #Frame[24] := DWORD_TO_WORD(SHR(IN := #Model.CommandAgeMs, N := 16));
+   #Frame[25] := DWORD_TO_WORD(#Model.CommandAgeMs);
+   #Frame[26] := DWORD_TO_WORD(SHR(IN := #Model.OrinHeartbeatAgeMs, N := 16));
+   #Frame[27] := DWORD_TO_WORD(#Model.OrinHeartbeatAgeMs);
+
+   #Bits := "FC_Real32ToDWord"(Value := #Model.ActualSpeedMps);
+   #Frame[28] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[29] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.ActualSteeringAngleRad);
+   #Frame[30] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[31] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.ThrottlePositionPercent);
+   #Frame[32] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[33] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.BrakePositionPercent);
+   #Frame[34] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[35] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.BrakeEffectValue);
+   #Frame[36] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[37] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.LeftWheelSpeedMps);
+   #Frame[38] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[39] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.RightWheelSpeedMps);
+   #Frame[40] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[41] := DWORD_TO_WORD(#Bits);
+
+   #Frame[42] := #Model.G16SummaryFlags;
+   #Frame[43] := #Model.SafetySummaryFlags;
+   #Frame[44] := DWORD_TO_WORD(SHR(IN := #Model.G16FrameAgeMs, N := 16));
+   #Frame[45] := DWORD_TO_WORD(#Model.G16FrameAgeMs);
+   #Frame[46] := DWORD_TO_WORD(SHR(IN := #Model.G16FrameCounter, N := 16));
+   #Frame[47] := DWORD_TO_WORD(#Model.G16FrameCounter);
+
+   // Frame[48..59] are reserved and remain zero. CRC covers registers 0..59.
+   #Crc := "FC_Crc32IsoHdlc"(Registers := #Frame, RegisterCount := 60);
+   #Frame[60] := DWORD_TO_WORD(SHR(IN := #Crc, N := 16));
+   #Frame[61] := DWORD_TO_WORD(#Crc);
+   #Frame[62] := #Frame[4];
+   #Frame[63] := #Frame[5];
+
+   #FC_EncodePlcStateSnapshot := TRUE;
+END_FUNCTION

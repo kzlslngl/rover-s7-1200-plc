@@ -1,0 +1,18 @@
+FUNCTION "FC_IsFiniteReal32BigEndian" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      HighWord : Word;
+      LowWord : Word;
+   END_VAR
+   VAR_TEMP
+      Bits : DWord;
+   END_VAR
+
+BEGIN
+   #Bits := SHL(IN := WORD_TO_DWORD(#HighWord), N := 16)
+      OR WORD_TO_DWORD(#LowWord);
+   // IEEE-754 NaN and both infinities have an all-ones exponent.
+   #FC_IsFiniteReal32BigEndian :=
+      (#Bits AND 16#7F800000) <> 16#7F800000;
+END_FUNCTION

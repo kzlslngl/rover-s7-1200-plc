@@ -1,0 +1,89 @@
+FUNCTION_BLOCK "FB_G16ChannelObserver"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      Reset : Bool;
+      DataValid : Bool;
+      ChannelRaw : Array[0..15] of UInt;
+      ChangeThreshold : UInt;
+   END_VAR
+   VAR_OUTPUT
+      Initialized : Bool;
+      ChangedMask : Word;
+      MostChangedChannel : Int;
+      MostChangedDelta : UInt;
+      Minimum : Array[0..15] of UInt;
+      Maximum : Array[0..15] of UInt;
+      Delta : Array[0..15] of UInt;
+   END_VAR
+   VAR
+      Previous : Array[0..15] of UInt;
+      MinimumState : Array[0..15] of UInt;
+      MaximumState : Array[0..15] of UInt;
+      DeltaState : Array[0..15] of UInt;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+      CurrentDelta : UInt;
+   END_VAR
+
+BEGIN
+   #ChangedMask := 16#0000;
+   #MostChangedChannel := -1;
+   #MostChangedDelta := 0;
+
+   IF #Reset THEN
+      #Initialized := FALSE;
+      FOR #Index := 0 TO 15 DO
+         #Previous[#Index] := 0;
+         #MinimumState[#Index] := 0;
+         #MaximumState[#Index] := 0;
+         #DeltaState[#Index] := 0;
+      END_FOR;
+   ELSIF #Enable AND #DataValid THEN
+      IF NOT #Initialized THEN
+         FOR #Index := 0 TO 15 DO
+            #Previous[#Index] := #ChannelRaw[#Index];
+            #MinimumState[#Index] := #ChannelRaw[#Index];
+            #MaximumState[#Index] := #ChannelRaw[#Index];
+            #DeltaState[#Index] := 0;
+         END_FOR;
+         #Initialized := TRUE;
+      ELSE
+         FOR #Index := 0 TO 15 DO
+            IF #ChannelRaw[#Index] >= #Previous[#Index] THEN
+               #CurrentDelta := #ChannelRaw[#Index] - #Previous[#Index];
+            ELSE
+               #CurrentDelta := #Previous[#Index] - #ChannelRaw[#Index];
+            END_IF;
+
+            #DeltaState[#Index] := #CurrentDelta;
+            IF #CurrentDelta >= #ChangeThreshold THEN
+               #ChangedMask := #ChangedMask OR
+                  SHL(IN := WORD#16#0001, N := INT_TO_UINT(#Index));
+            END_IF;
+
+            IF #CurrentDelta > #MostChangedDelta THEN
+               #MostChangedDelta := #CurrentDelta;
+               #MostChangedChannel := #Index;
+            END_IF;
+
+            IF #ChannelRaw[#Index] < #MinimumState[#Index] THEN
+               #MinimumState[#Index] := #ChannelRaw[#Index];
+            END_IF;
+            IF #ChannelRaw[#Index] > #MaximumState[#Index] THEN
+               #MaximumState[#Index] := #ChannelRaw[#Index];
+            END_IF;
+
+            #Previous[#Index] := #ChannelRaw[#Index];
+         END_FOR;
+      END_IF;
+   END_IF;
+
+   FOR #Index := 0 TO 15 DO
+      #Minimum[#Index] := #MinimumState[#Index];
+      #Maximum[#Index] := #MaximumState[#Index];
+      #Delta[#Index] := #DeltaState[#Index];
+   END_FOR;
+END_FUNCTION_BLOCK

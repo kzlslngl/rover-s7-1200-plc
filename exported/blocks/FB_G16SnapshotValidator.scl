@@ -1,16 +1,18 @@
 FUNCTION_BLOCK "FB_G16SnapshotValidator"
 { S7_Optimized_Access := 'TRUE' }
-VERSION : 0.1
+VERSION : 0.2
    VAR_INPUT
       PollDone : Bool;
       PollError : Bool;
       Raw : Array[0..63] of Word;
       MaxFrameAgeMs : UInt;
+      G16FrameTimeout : Time;
       PollTimeout : Time;
       RequiredHealthySnapshots : UInt;
    END_VAR
    VAR_OUTPUT
       DataValid : Bool;
+      FrameCounterFresh : Bool;
       RejectBits : Word;
       HealthySnapshotCount : UInt;
       CalculatedCrc : DWord;
@@ -20,9 +22,13 @@ VERSION : 0.1
    END_VAR
    VAR
       ValidDataWatchdog : TON_TIME;
+      FrameCounterWatchdog : TON_TIME;
       HaveAcceptedSnapshot : Bool;
+      HaveObservedFrameCounter : Bool;
       LastHeartbeat : DWord;
+      LastObservedFrameCounter : DWord;
       NewValidSnapshotThisScan : Bool;
+      FrameCounterProgressedThisScan : Bool;
       HealthySnapshotCountState : UInt;
       LastAcceptedSequenceState : DWord;
       LastAcceptedSessionState : DWord;
@@ -32,6 +38,7 @@ VERSION : 0.1
       EndSequence : DWord;
       SessionId : DWord;
       Heartbeat : DWord;
+      SbusFrameCounter : DWord;
       SequenceDelta : DWord;
       ChannelIndex : Int;
       ReservedIndex : Int;
@@ -44,8 +51,9 @@ BEGIN
    // RejectBits:
    // bit 0 transport/watchdog, 1 header, 2 torn/backward sequence,
    // 3 CRC, 4 heartbeat, 5 SBUS flags, 6 channel metadata/age,
-   // 7 reserved non-zero.
+   // 7 reserved non-zero, 8 SBUS frame counter stale.
    #NewValidSnapshotThisScan := FALSE;
+   #FrameCounterProgressedThisScan := FALSE;
    #RejectBits := 16#0000;
 
    IF #PollError THEN
@@ -61,6 +69,8 @@ BEGIN
          HighWord := #Raw[6], LowWord := #Raw[7]);
       #Heartbeat := "FC_ReadU32BigEndian"(
          HighWord := #Raw[8], LowWord := #Raw[9]);
+      #SbusFrameCounter := "FC_ReadU32BigEndian"(
+         HighWord := #Raw[10], LowWord := #Raw[11]);
       #EndSequence := "FC_ReadU32BigEndian"(
          HighWord := #Raw[62], LowWord := #Raw[63]);
       #WireCrc := "FC_ReadU32BigEndian"(
@@ -135,12 +145,22 @@ BEGIN
          #LastAcceptedSessionState := #SessionId;
          #LastHeartbeat := #Heartbeat;
 
+         // The gateway heartbeat/sequence may advance without a new SBUS
+         // frame. Track SBUS progression independently using PLC-local time.
+         IF (NOT #HaveObservedFrameCounter) OR #SessionChanged THEN
+            #HaveObservedFrameCounter := TRUE;
+            #LastObservedFrameCounter := #SbusFrameCounter;
+            #FrameCounterProgressedThisScan := TRUE;
+         ELSIF #SbusFrameCounter <> #LastObservedFrameCounter THEN
+            #LastObservedFrameCounter := #SbusFrameCounter;
+            #FrameCounterProgressedThisScan := TRUE;
+         END_IF;
+
          // Copy only a completely accepted snapshot into the typed working DB.
          "DB_ValidatedG16Input".Data.SessionId := #SessionId;
          "DB_ValidatedG16Input".Data.Sequence := #BeginSequence;
          "DB_ValidatedG16Input".Data.Heartbeat := #Heartbeat;
-         "DB_ValidatedG16Input".Data.SbusFrameCounter :=
-            "FC_ReadU32BigEndian"(HighWord := #Raw[10], LowWord := #Raw[11]);
+         "DB_ValidatedG16Input".Data.SbusFrameCounter := #SbusFrameCounter;
          "DB_ValidatedG16Input".Data.GatewayMonotonicMs :=
             "FC_ReadU32BigEndian"(HighWord := #Raw[12], LowWord := #Raw[13]);
          "DB_ValidatedG16Input".Data.FrameAgeMs := WORD_TO_UINT(#Raw[14]);
@@ -175,6 +195,21 @@ BEGIN
       #DataValid := FALSE;
       "DB_ValidatedG16Input".Data.Valid := FALSE;
       #RejectBits := #RejectBits OR 16#0001;
+   END_IF;
+
+   // This timer proves that usable receiver frames are still arriving. It is
+   // intentionally independent of ESP heartbeat and Modbus poll freshness.
+   #FrameCounterWatchdog(
+      IN := #HaveObservedFrameCounter AND
+         NOT #FrameCounterProgressedThisScan,
+      PT := #G16FrameTimeout);
+   #FrameCounterFresh := #HaveObservedFrameCounter AND
+      NOT #FrameCounterWatchdog.Q;
+   IF #FrameCounterWatchdog.Q THEN
+      #DataValid := FALSE;
+      #HealthySnapshotCountState := 0;
+      "DB_ValidatedG16Input".Data.Valid := FALSE;
+      #RejectBits := #RejectBits OR 16#0100;
    END_IF;
 
    // Outputs mirror initialized static state; they are not used as memory.

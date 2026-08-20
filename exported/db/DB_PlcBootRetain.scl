@@ -1,0 +1,9 @@
+DATA_BLOCK "DB_PlcBootRetain"
+{ S7_Optimized_Access := 'TRUE'; S7_StandardRetain := 'TRUE' }
+VERSION : 0.1
+   VAR
+      BootCounter : DWord;
+   END_VAR
+
+BEGIN
+END_DATA_BLOCK

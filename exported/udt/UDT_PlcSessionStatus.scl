@@ -1,0 +1,9 @@
+TYPE "UDT_PlcSessionStatus"
+VERSION : 0.1
+   STRUCT
+      Initialized : Bool;
+      NewSessionPulse : Bool;
+      BootCounter : DWord;
+      SessionId : DWord;
+   END_STRUCT;
+END_TYPE

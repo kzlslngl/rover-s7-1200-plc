@@ -1,0 +1,29 @@
+TYPE "UDT_PlcStateModel"
+VERSION : 0.1
+   STRUCT
+      PlcSessionId : DWord;
+      HeartbeatCounter : DWord;
+      PlcMonotonicMs : DWord;
+      OperationalState : UInt;
+      ActiveAuthority : UInt;
+      StatusFlags : Word;
+      CommandRejectReason : UInt;
+      FaultBits : DWord;
+      InterlockBits : DWord;
+      AcceptedOrinSessionId : DWord;
+      AcceptedCommandSequence : DWord;
+      CommandAgeMs : DWord;
+      OrinHeartbeatAgeMs : DWord;
+      ActualSpeedMps : Real;
+      ActualSteeringAngleRad : Real;
+      ThrottlePositionPercent : Real;
+      BrakePositionPercent : Real;
+      BrakeEffectValue : Real;
+      LeftWheelSpeedMps : Real;
+      RightWheelSpeedMps : Real;
+      G16SummaryFlags : Word;
+      SafetySummaryFlags : Word;
+      G16FrameAgeMs : DWord;
+      G16FrameCounter : DWord;
+   END_STRUCT;
+END_TYPE

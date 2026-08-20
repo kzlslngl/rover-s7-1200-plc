@@ -1,0 +1,93 @@
+FUNCTION_BLOCK "FB_PlcStatePublisher"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      CycleTimeMs : UInt;
+      PublishPeriodMs : UInt;
+      Model : "UDT_PlcStateModel";
+   END_VAR
+   VAR_IN_OUT
+      Holding : Array[0..319] of Word;
+   END_VAR
+   VAR_OUTPUT
+      Published : Bool;
+      Sequence : DWord;
+      HeartbeatCounter : DWord;
+      MonotonicMs : DWord;
+      CalculatedCrc : DWord;
+   END_VAR
+   VAR
+      LastSessionId : DWord;
+      PublishElapsedMs : DWord;
+      SequenceState : DWord;
+      HeartbeatState : DWord;
+      MonotonicState : DWord;
+   END_VAR
+   VAR_TEMP
+      Frame : Array[0..63] of Word;
+      PublishNow : Bool;
+      EncodeOk : Bool;
+      Index : Int;
+      InvalidBegin : DWord;
+      LocalModel : "UDT_PlcStateModel";
+   END_VAR
+
+BEGIN
+   #Published := FALSE;
+
+   IF #Enable THEN
+      #MonotonicState := #MonotonicState + UINT_TO_DWORD(#CycleTimeMs);
+      #PublishElapsedMs := #PublishElapsedMs + UINT_TO_DWORD(#CycleTimeMs);
+
+      #PublishNow := (#PublishElapsedMs >= UINT_TO_DWORD(#PublishPeriodMs));
+      IF #Model.PlcSessionId <> #LastSessionId THEN
+         #LastSessionId := #Model.PlcSessionId;
+         #SequenceState := 16#00000000;
+         #HeartbeatState := 16#00000000;
+         #MonotonicState := 16#00000000;
+         #PublishNow := TRUE;
+      END_IF;
+
+      IF #PublishNow THEN
+         #PublishElapsedMs := 16#00000000;
+         #SequenceState := #SequenceState + 16#00000001;
+         #HeartbeatState := #HeartbeatState + 16#00000001;
+
+         // Runtime-owned counters override their typed-model placeholders.
+         #LocalModel := #Model;
+         #LocalModel.HeartbeatCounter := #HeartbeatState;
+         #LocalModel.PlcMonotonicMs := #MonotonicState;
+         #EncodeOk := "FC_EncodePlcStateSnapshot"(
+            Model := #LocalModel,
+            Sequence := #SequenceState,
+            Frame := #Frame);
+
+         IF #EncodeOk THEN
+            // Mark the public frame inconsistent before replacing its payload.
+            #InvalidBegin := #SequenceState XOR 16#FFFFFFFF;
+            #Holding[68] := DWORD_TO_WORD(SHR(IN := #InvalidBegin, N := 16));
+            #Holding[69] := DWORD_TO_WORD(#InvalidBegin);
+
+            FOR #Index := 0 TO 63 DO
+               IF (#Index <> 4) AND (#Index <> 5) THEN
+                  #Holding[64 + #Index] := #Frame[#Index];
+               END_IF;
+            END_FOR;
+
+            // Commit begin sequence last; readers accept only begin=end.
+            #Holding[68] := #Frame[4];
+            #Holding[69] := #Frame[5];
+            #Published := TRUE;
+         END_IF;
+      END_IF;
+   ELSE
+      #PublishElapsedMs := 16#00000000;
+   END_IF;
+
+   #Sequence := #SequenceState;
+   #HeartbeatCounter := #HeartbeatState;
+   #MonotonicMs := #MonotonicState;
+   #CalculatedCrc := SHL(IN := WORD_TO_DWORD(#Holding[124]), N := 16)
+      OR WORD_TO_DWORD(#Holding[125]);
+END_FUNCTION_BLOCK
