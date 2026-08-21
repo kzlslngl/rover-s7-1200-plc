@@ -96,6 +96,19 @@ Akis kesildiginde command ve heartbeat freshness zaman asimina ugramali,
 - G16 status Orin'e izleme, operator durumu ve safety context icin PLC
   uzerinden yayinlanir. Orin bu veriyi dogrudan actuator komutuna cevirmemelidir.
 
+> **Dipnot - mevcut AUTO steering durumu:** Orin komut transportu ve validator
+> calisiyor olsa da Orin su anda direksiyon servosunu AUTO modda kontrol edemez.
+> Validator bench asamasinda yalniz `SAFE_DISABLED` ve `CONTROLLED_STOP`
+> mode'larini kabul eder; AUTO komutlari `RejectReason=11` ile kapali tutulur.
+> Validated `TargetSteeringAngleRad` henuz steering supervisor hareket yoluna
+> bagli degildir ve authority tarafindaki Orin validity baglantisi production
+> kaynagi olarak tamamlanmamistir. AUTO hareket acilmadan once hedef radyandan
+> dereceye cevrilmeli, PLC mekanik aci/rate limitleriyle sinirlanmali ve
+> `AutoCommandValid`; validated command, AUTO authority ve safety kosullarinin
+> birlikte saglanmasindan uretilmelidir. Ilk entegrasyon watch-only yapilmali;
+> hedef, yon, donusum, session ve timeout davranisi dogrulanmadan servo hareket
+> yoluna baglanmamalidir.
+
 ## Zamanlama bilgisi
 
 `PLC_TO_ORIN_STATE` ve `G16_STATUS` publisher bloklari IEC `TON` ile nominal
