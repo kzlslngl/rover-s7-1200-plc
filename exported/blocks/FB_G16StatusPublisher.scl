@@ -1,0 +1,77 @@
+FUNCTION_BLOCK "FB_G16StatusPublisher"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.2
+   VAR_INPUT
+      Enable : Bool;
+      PublishPeriodMs : UInt;
+      Model : "UDT_G16StatusModel";
+   END_VAR
+   VAR_IN_OUT
+      Holding : Array[0..319] of Word;
+   END_VAR
+   VAR_OUTPUT
+      Published : Bool;
+      Sequence : DWord;
+      CalculatedCrc : DWord;
+   END_VAR
+   VAR
+      LastSessionId : DWord;
+      SequenceState : DWord;
+      PublishTimer : TON_TIME;
+   END_VAR
+   VAR_TEMP
+      Frame : Array[0..63] of Word;
+      PublishNow : Bool;
+      EncodeOk : Bool;
+      Index : Int;
+      InvalidBegin : DWord;
+   END_VAR
+
+BEGIN
+   #Published := FALSE;
+
+   IF #Enable THEN
+      #PublishTimer(IN := TRUE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      #PublishNow := #PublishTimer.Q;
+
+      IF #Model.DecoderSessionId <> #LastSessionId THEN
+         #LastSessionId := #Model.DecoderSessionId;
+         #SequenceState := 16#00000000;
+         #PublishNow := TRUE;
+      END_IF;
+
+      IF #PublishNow THEN
+         #SequenceState := #SequenceState + 16#00000001;
+         #EncodeOk := "FC_EncodeG16StatusSnapshot"(
+            Model := #Model,
+            Sequence := #SequenceState,
+            Frame := #Frame);
+
+         IF #EncodeOk THEN
+            #InvalidBegin := #SequenceState XOR 16#FFFFFFFF;
+            #Holding[132] := DWORD_TO_WORD(SHR(IN := #InvalidBegin, N := 16));
+            #Holding[133] := DWORD_TO_WORD(#InvalidBegin);
+
+            FOR #Index := 0 TO 63 DO
+               IF (#Index <> 4) AND (#Index <> 5) THEN
+                  #Holding[128 + #Index] := #Frame[#Index];
+               END_IF;
+            END_FOR;
+
+            // Commit begin sequence last; readers require begin=end.
+            #Holding[132] := #Frame[4];
+            #Holding[133] := #Frame[5];
+            #Published := TRUE;
+         END_IF;
+
+         // Reset in the same scan; the next scan starts a new interval.
+         #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      END_IF;
+   ELSE
+      #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+   END_IF;
+
+   #Sequence := #SequenceState;
+   #CalculatedCrc := SHL(IN := WORD_TO_DWORD(#Holding[188]), N := 16)
+      OR WORD_TO_DWORD(#Holding[189]);
+END_FUNCTION_BLOCK

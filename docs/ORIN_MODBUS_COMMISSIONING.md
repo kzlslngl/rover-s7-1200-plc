@@ -15,6 +15,29 @@ PLC `MB_SERVER` için tek raw alan kullanır:
 `DB_ModbusServerRaw` global, non-optimized ve non-retentive kalmalıdır. Raw
 register'lar safety, authority veya actuator hesabında doğrudan kullanılmaz.
 
+`G16_STATUS.channel_normalized[16]` signed `Int` kullanır ve nominal ölçeği
+`-1000..+1000`'dir. Negatif değerler Modbus Word üzerinde iki'nin tümleyeni
+olarak encode edilir. Canlı kalibrasyon staging'i tamamlanana kadar bu dizi
+sıfır yayınlanır; ham kanallar ve validity alanları ayrı kalır.
+
+İlk canlı `FC_StageG16StatusModel` yalnız doğrulanmış ESP snapshot'ındaki
+session, heartbeat, SBUS frame counter/age/flags, channel mask ve 16 ham
+kanalı taşır. `CHANNEL_CALIBRATION_VALID`, `LINK_QUALITY_VALID` ve
+`RSSI_VALID` bu geçiş aşamasında kapalı kalır.
+
+PLC state ve G16 status publisher V0.2 zamanlaması IEC `TON` kullanır.
+`PublishPeriodMs=20` gerçek OB1 scan süresinden bağımsız eşik oluşturur;
+hard-coded `CycleTimeMs` girişi kaldırılmıştır. PLC state içindeki monotonic
+alan configured nominal publish period ile ilerleyen diagnostic değerdir ve
+safety/freshness hesabında kullanılmaz.
+
+`FB_CycleTimeMonitor` OB1'in ilk network'inde her scan çağrılır. Siemens
+`RUNTIME` CPU iç sayacını kullanarak aynı statik `LReal` memory ile ardışık
+çağrılar arasındaki süreyi saniye cinsinden ölçer. Çıkış `CycleTimeSec`, scan
+tabanlı rate/acceleration integratörlerine verilir. İlk veya configured üst
+sınırı aşan örnekte yalnız commissioning fallback değeri kullanılır ve
+`InvalidSampleCount` artırılır.
+
 ## İlk import sırası
 
 1. `exported/udt/UDT_OrinCommandValidated.scl`

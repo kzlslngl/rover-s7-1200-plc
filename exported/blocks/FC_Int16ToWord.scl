@@ -1,0 +1,16 @@
+FUNCTION "FC_Int16ToWord" : Word
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+   VAR_INPUT
+      Value : Int;
+   END_VAR
+   VAR_TEMP
+      SignedValue : Int;
+      Bits AT SignedValue : Word;
+   END_VAR
+
+BEGIN
+   // Preserve the signed INT two's-complement bit pattern on the wire.
+   #SignedValue := #Value;
+   #FC_Int16ToWord := #Bits;
+END_FUNCTION

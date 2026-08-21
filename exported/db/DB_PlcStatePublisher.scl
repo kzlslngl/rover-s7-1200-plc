@@ -1,8 +1,0 @@
-DATA_BLOCK "DB_PlcStatePublisher"
-{ S7_Optimized_Access := 'TRUE' }
-VERSION : 0.1
-NON_RETAIN
-   "FB_PlcStatePublisher"
-
-BEGIN
-END_DATA_BLOCK

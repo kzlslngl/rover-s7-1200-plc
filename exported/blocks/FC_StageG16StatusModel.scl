@@ -1,0 +1,37 @@
+FUNCTION "FC_StageG16StatusModel" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      Index : Int;
+   END_VAR
+
+BEGIN
+   "DB_G16StatusModel".Data.DecoderSessionId :=
+      "DB_ValidatedG16Input".Data.SessionId;
+   "DB_G16StatusModel".Data.DecoderHeartbeat :=
+      "DB_ValidatedG16Input".Data.Heartbeat;
+   "DB_G16StatusModel".Data.SbusFrameCounter :=
+      "DB_ValidatedG16Input".Data.SbusFrameCounter;
+   "DB_G16StatusModel".Data.FrameAgeMs :=
+      "DB_ValidatedG16Input".Data.FrameAgeMs;
+
+   // Bits 0..4 come directly from the accepted ESP snapshot. Calibration,
+   // link-quality and RSSI validity remain clear until their typed models are
+   // commissioned.
+   "DB_G16StatusModel".Data.SbusFlags :=
+      "DB_ValidatedG16Input".Data.SbusFlags AND 16#001F;
+   "DB_G16StatusModel".Data.ChannelCount := 16;
+   "DB_G16StatusModel".Data.ChannelValidMask :=
+      "DB_ValidatedG16Input".Data.ChannelValidMask;
+
+   FOR #Index := 0 TO 15 DO
+      "DB_G16StatusModel".Data.ChannelRaw[#Index] :=
+         "DB_ValidatedG16Input".Data.ChannelRaw[#Index];
+      "DB_G16StatusModel".Data.ChannelNormalized[#Index] := 0;
+   END_FOR;
+
+   "DB_G16StatusModel".Data.LinkQuality := 0;
+   "DB_G16StatusModel".Data.RssiDbm := 0;
+
+   #FC_StageG16StatusModel := TRUE;
+END_FUNCTION

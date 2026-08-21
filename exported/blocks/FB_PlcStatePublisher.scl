@@ -1,9 +1,8 @@
 FUNCTION_BLOCK "FB_PlcStatePublisher"
 { S7_Optimized_Access := 'TRUE' }
-VERSION : 0.1
+VERSION : 0.2
    VAR_INPUT
       Enable : Bool;
-      CycleTimeMs : UInt;
       PublishPeriodMs : UInt;
       Model : "UDT_PlcStateModel";
    END_VAR
@@ -19,10 +18,10 @@ VERSION : 0.1
    END_VAR
    VAR
       LastSessionId : DWord;
-      PublishElapsedMs : DWord;
       SequenceState : DWord;
       HeartbeatState : DWord;
       MonotonicState : DWord;
+      PublishTimer : TON_TIME;
    END_VAR
    VAR_TEMP
       Frame : Array[0..63] of Word;
@@ -37,10 +36,8 @@ BEGIN
    #Published := FALSE;
 
    IF #Enable THEN
-      #MonotonicState := #MonotonicState + UINT_TO_DWORD(#CycleTimeMs);
-      #PublishElapsedMs := #PublishElapsedMs + UINT_TO_DWORD(#CycleTimeMs);
-
-      #PublishNow := (#PublishElapsedMs >= UINT_TO_DWORD(#PublishPeriodMs));
+      #PublishTimer(IN := TRUE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      #PublishNow := #PublishTimer.Q;
       IF #Model.PlcSessionId <> #LastSessionId THEN
          #LastSessionId := #Model.PlcSessionId;
          #SequenceState := 16#00000000;
@@ -50,9 +47,11 @@ BEGIN
       END_IF;
 
       IF #PublishNow THEN
-         #PublishElapsedMs := 16#00000000;
          #SequenceState := #SequenceState + 16#00000001;
          #HeartbeatState := #HeartbeatState + 16#00000001;
+         // Diagnostic monotonic value advances by the configured nominal
+         // publish period. Safety/freshness logic does not use this value.
+         #MonotonicState := #MonotonicState + UINT_TO_DWORD(#PublishPeriodMs);
 
          // Runtime-owned counters override their typed-model placeholders.
          #LocalModel := #Model;
@@ -80,9 +79,12 @@ BEGIN
             #Holding[69] := #Frame[5];
             #Published := TRUE;
          END_IF;
+
+         // Reset in the same scan; the next scan starts a new interval.
+         #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
       END_IF;
    ELSE
-      #PublishElapsedMs := 16#00000000;
+      #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
    END_IF;
 
    #Sequence := #SequenceState;

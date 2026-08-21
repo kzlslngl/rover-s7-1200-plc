@@ -150,7 +150,7 @@ doğrulanmadan fiziksel DB numarası sabitlenmez.
 | `DB_ValidatedOrinCommand` | CRC/session/freshness kontrollerinden geçmiş komut |
 | `DB_ValidatedG16Input` | doğrulanmış ham kanal snapshot'ı ve kalibrasyon sonucu |
 | `DB_ControlState` | operational state, authority ve geçiş zamanlayıcıları |
-| `DB_PlcStatePublisher` | Orin'e yayımlanacak PLC state staging alanı |
+| `DB_PlcStateModel` | Orin'e yayımlanacak PLC state typed staging alanı |
 | `DB_Diagnostics` | hata, reject, scan ve haberleşme sayaçları |
 | `DB_ActiveConfig` | gerçekten uygulanan limitler, timeout ve config kimliği |
 | `DB_SafetyInputs` | salt-okunur safety/interlock giriş aynası |

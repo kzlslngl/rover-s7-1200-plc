@@ -1,0 +1,63 @@
+FUNCTION_BLOCK "FB_CycleTimeMonitor"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      FallbackCycleTimeSec : Real;
+      MaximumAcceptedCycleTimeSec : Real;
+   END_VAR
+   VAR_OUTPUT
+      Valid : Bool;
+      CycleTimeSec : Real;
+      CycleTimeMs : Real;
+      MinimumCycleTimeMs : Real;
+      MaximumCycleTimeMs : Real;
+      InvalidSampleCount : DWord;
+   END_VAR
+   VAR
+      RuntimeMemory : LReal;
+      HaveValidSample : Bool;
+      MinimumCycleTimeMsState : Real;
+      MaximumCycleTimeMsState : Real;
+      InvalidSampleCountState : DWord;
+   END_VAR
+   VAR_TEMP
+      MeasuredSeconds : LReal;
+      MeasuredSecondsReal : Real;
+   END_VAR
+
+BEGIN
+   // One call at a fixed position in every OB1 scan measures the elapsed
+   // wall-clock runtime since the preceding call. RUNTIME includes interrupt
+   // and communication load seen by the CPU.
+   #MeasuredSeconds := RUNTIME(#RuntimeMemory);
+   #MeasuredSecondsReal := LREAL_TO_REAL(#MeasuredSeconds);
+
+   #Valid := (#MeasuredSecondsReal > 0.0) AND
+      (#MeasuredSecondsReal <= #MaximumAcceptedCycleTimeSec);
+
+   IF #Valid THEN
+      #CycleTimeSec := #MeasuredSecondsReal;
+      #CycleTimeMs := #MeasuredSecondsReal * 1000.0;
+
+      IF NOT #HaveValidSample THEN
+         #MinimumCycleTimeMsState := #CycleTimeMs;
+         #MaximumCycleTimeMsState := #CycleTimeMs;
+         #HaveValidSample := TRUE;
+      ELSE
+         IF #CycleTimeMs < #MinimumCycleTimeMsState THEN
+            #MinimumCycleTimeMsState := #CycleTimeMs;
+         END_IF;
+         IF #CycleTimeMs > #MaximumCycleTimeMsState THEN
+            #MaximumCycleTimeMsState := #CycleTimeMs;
+         END_IF;
+      END_IF;
+   ELSE
+      #CycleTimeSec := #FallbackCycleTimeSec;
+      #CycleTimeMs := #FallbackCycleTimeSec * 1000.0;
+      #InvalidSampleCountState := #InvalidSampleCountState + 16#00000001;
+   END_IF;
+
+   #MinimumCycleTimeMs := #MinimumCycleTimeMsState;
+   #MaximumCycleTimeMs := #MaximumCycleTimeMsState;
+   #InvalidSampleCount := #InvalidSampleCountState;
+END_FUNCTION_BLOCK

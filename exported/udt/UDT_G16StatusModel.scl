@@ -1,0 +1,16 @@
+TYPE "UDT_G16StatusModel"
+VERSION : 0.1
+   STRUCT
+      DecoderSessionId : DWord;
+      DecoderHeartbeat : DWord;
+      SbusFrameCounter : DWord;
+      FrameAgeMs : UInt;
+      SbusFlags : Word;
+      ChannelCount : UInt;
+      ChannelValidMask : Word;
+      ChannelRaw : Array[0..15] of UInt;
+      ChannelNormalized : Array[0..15] of Int; // nominal -1000..+1000
+      LinkQuality : UInt;
+      RssiDbm : Int;
+   END_STRUCT;
+END_TYPE

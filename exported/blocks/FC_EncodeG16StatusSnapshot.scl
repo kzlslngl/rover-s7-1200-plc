@@ -1,0 +1,55 @@
+FUNCTION "FC_EncodeG16StatusSnapshot" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Model : "UDT_G16StatusModel";
+      Sequence : DWord;
+   END_VAR
+   VAR_IN_OUT
+      Frame : Array[0..63] of Word;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+      Crc : DWord;
+   END_VAR
+
+BEGIN
+   FOR #Index := 0 TO 63 DO
+      #Frame[#Index] := 16#0000;
+   END_FOR;
+
+   #Frame[0] := 16#5247; // "RG"
+   #Frame[1] := 1;
+   #Frame[2] := 1;
+   #Frame[3] := 64;
+   #Frame[4] := DWORD_TO_WORD(SHR(IN := #Sequence, N := 16));
+   #Frame[5] := DWORD_TO_WORD(#Sequence);
+   #Frame[6] := DWORD_TO_WORD(SHR(IN := #Model.DecoderSessionId, N := 16));
+   #Frame[7] := DWORD_TO_WORD(#Model.DecoderSessionId);
+   #Frame[8] := DWORD_TO_WORD(SHR(IN := #Model.DecoderHeartbeat, N := 16));
+   #Frame[9] := DWORD_TO_WORD(#Model.DecoderHeartbeat);
+   #Frame[10] := DWORD_TO_WORD(SHR(IN := #Model.SbusFrameCounter, N := 16));
+   #Frame[11] := DWORD_TO_WORD(#Model.SbusFrameCounter);
+   #Frame[12] := UINT_TO_WORD(#Model.FrameAgeMs);
+   #Frame[13] := #Model.SbusFlags;
+   #Frame[14] := UINT_TO_WORD(#Model.ChannelCount);
+   #Frame[15] := #Model.ChannelValidMask;
+
+   FOR #Index := 0 TO 15 DO
+      #Frame[16 + #Index] := UINT_TO_WORD(#Model.ChannelRaw[#Index]);
+      #Frame[32 + #Index] := "FC_Int16ToWord"(
+         Value := #Model.ChannelNormalized[#Index]);
+   END_FOR;
+
+   #Frame[48] := UINT_TO_WORD(#Model.LinkQuality);
+   #Frame[49] := "FC_Int16ToWord"(Value := #Model.RssiDbm);
+   // Frame[50..59] are reserved and remain zero.
+
+   #Crc := "FC_Crc32IsoHdlc"(Registers := #Frame, RegisterCount := 60);
+   #Frame[60] := DWORD_TO_WORD(SHR(IN := #Crc, N := 16));
+   #Frame[61] := DWORD_TO_WORD(#Crc);
+   #Frame[62] := #Frame[4];
+   #Frame[63] := #Frame[5];
+
+   #FC_EncodeG16StatusSnapshot := TRUE;
+END_FUNCTION

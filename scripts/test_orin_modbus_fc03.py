@@ -4,6 +4,7 @@
 import socket
 import struct
 import sys
+import zlib
 
 
 def main() -> int:
@@ -39,6 +40,24 @@ def main() -> int:
     registers = list(struct.unpack(f">{quantity}H", payload[2:]))
     print(f"FC03 OK host={host} start={start} quantity={quantity}")
     print("registers=" + " ".join(f"{value:04X}" for value in registers))
+
+    if quantity == 64:
+        begin_sequence = (registers[4] << 16) | registers[5]
+        end_sequence = (registers[62] << 16) | registers[63]
+        wire_crc = (registers[60] << 16) | registers[61]
+        crc_bytes = struct.pack(">60H", *registers[:60])
+        calculated_crc = zlib.crc32(crc_bytes) & 0xFFFFFFFF
+        header_ok = registers[1:4] == [1, 1, 64]
+        sequence_ok = begin_sequence == end_sequence
+        crc_ok = calculated_crc == wire_crc
+        print(
+            f"snapshot header_ok={header_ok} sequence_ok={sequence_ok} "
+            f"crc_ok={crc_ok} begin={begin_sequence:08X} "
+            f"end={end_sequence:08X} calculated_crc={calculated_crc:08X} "
+            f"wire_crc={wire_crc:08X}"
+        )
+        if not (header_ok and sequence_ok and crc_ok):
+            return 1
     return 0
 
 
