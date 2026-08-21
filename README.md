@@ -44,8 +44,10 @@ PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlam
 4. [`MAIN_PROTOCOL_HANDOFF_CABA72C.md`](MAIN_PROTOCOL_HANDOFF_CABA72C.md):
    ana projede kapanan bitfield, diagnostics/config payload, test vektörü ve
    VM–PLC bench kabul kapıları;
-5. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
-6. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+5. [`PLC_APPLICATION_REVIEW_2026-08-21.md`](PLC_APPLICATION_REVIEW_2026-08-21.md):
+   canlı VM–PLC FC03 sonucu ve uygulama dalında kapanması gereken bulgular;
+6. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+7. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
    validator geliştirme.
 
 Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
