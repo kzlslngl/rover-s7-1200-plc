@@ -6,6 +6,11 @@ fiziksel kabul sonuçları
 [`ORIN_COMMAND_VALIDATOR_V06_PHYSICAL_ACCEPTANCE_2026-08-21.md`](ORIN_COMMAND_VALIDATOR_V06_PHYSICAL_ACCEPTANCE_2026-08-21.md)
 belgesinde kayıtlıdır.
 
+`PLC_DIAGNOSTICS` publisher'ın üç ardışık salt-okunur FC03 örneği, ham
+register'ları, typed alanları, CRC ve progression sonucu
+[`PLC_DIAGNOSTICS_PHYSICAL_ACCEPTANCE_2026-08-21.md`](PLC_DIAGNOSTICS_PHYSICAL_ACCEPTANCE_2026-08-21.md)
+belgesinde kayıtlıdır.
+
 Bu belge PLC Codex'i için Ana Proje Codex'i tarafından hazırlanmıştır. Kaynak
 otorite
 `rover-core-ros2/agent/local-metric-map@854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
