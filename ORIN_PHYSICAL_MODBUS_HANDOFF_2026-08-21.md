@@ -1,5 +1,11 @@
 # Orin Fiziksel Modbus Handoff — 21 Ağustos 2026
 
+`FB_OrinCommandSnapshotValidator V0.6` için normal re-arm, held-TRUE yarış
+koruması, duplicate/backward progression, uint32 wrap ve frozen-command
+fiziksel kabul sonuçları
+[`ORIN_COMMAND_VALIDATOR_V06_PHYSICAL_ACCEPTANCE_2026-08-21.md`](ORIN_COMMAND_VALIDATOR_V06_PHYSICAL_ACCEPTANCE_2026-08-21.md)
+belgesinde kayıtlıdır.
+
 Bu belge PLC Codex'i için Ana Proje Codex'i tarafından hazırlanmıştır. Kaynak
 otorite
 `rover-core-ros2/agent/local-metric-map@854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
