@@ -1,0 +1,19 @@
+FUNCTION "FC_IsDWordForward" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Candidate : DWord;
+      Previous : DWord;
+   END_VAR
+   VAR_TEMP
+      Delta : DWord;
+   END_VAR
+
+BEGIN
+   // RFC-1982-style serial comparison for a 32-bit counter. Subtraction is
+   // intentionally modulo 2^32. Equal, backward and the ambiguous exact
+   // half-range value are not forward progress.
+   #Delta := #Candidate - #Previous;
+   #FC_IsDWordForward :=
+      (#Delta > 16#00000000) AND (#Delta < 16#80000000);
+END_FUNCTION

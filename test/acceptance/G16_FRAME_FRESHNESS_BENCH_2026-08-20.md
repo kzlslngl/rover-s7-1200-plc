@@ -25,6 +25,41 @@ Gözlenen sonuç:
 
 Sonuç: **PASS**
 
+## Validator V0.3 ileri-sayaç regresyonu — 21 Ağustos 2026
+
+`FC_IsDWordForward` ve `FB_G16SnapshotValidator V0.3` TIA V20'de sifir hata,
+sifir warning ile derlenip fiziksel CPU'ya yuklendi. Normal ESP/SBUS akisinda:
+
+- `DataValid = TRUE`
+- `FrameCounterFresh = TRUE`
+- `RejectBits = 16#0000`
+- `HealthySnapshotCount = 3`
+- `SessionId = 16#44AC_7D53` sabit
+- snapshot sequence, heartbeat ve SBUS frame counter ilerliyor
+
+SBUS hatti fiziksel olarak ayrildiginda ESP session, Ethernet, snapshot
+sequence ve heartbeat calismaya devam etti; SBUS frame counter ilerlemesi
+durdu. PLC-local `G16FrameTimeout = T#250MS` sonrasinda:
+
+- `DataValid = FALSE`
+- `FrameCounterFresh = FALSE`
+- `HealthySnapshotCount = 0`
+- `RejectBits = 16#0101`
+
+`16#0100` SBUS frame-counter freshness/anomaly bitidir. Hat uzun sure ayrik
+kaldigi icin kabul edilebilir yeni snapshot watchdog'u da dolmus ve
+`16#0001` ile birlikte `16#0101` gorulmustur.
+
+SBUS yeniden baglandiginda ayni ESP session altinda frame counter tekrar
+ilerlemis; uc saglikli snapshot sonrasinda `DataValid=TRUE`,
+`FrameCounterFresh=TRUE` ve `RejectBits=0` recovery gerceklesmistir.
+
+Bu regresyon normal ileri sayac ve yerel donma timeout davranisini kanitlar.
+G16 counter backward/toggle ve uint32 wrap hata enjeksiyonlari ayri test
+kaniti gerektirir.
+
+Sonuç: **PASS**
+
 ## SBUS hattı ayrılması
 
 SBUS hattı fiziksel olarak ayrıldı.

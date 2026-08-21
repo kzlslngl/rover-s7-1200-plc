@@ -1,6 +1,6 @@
 FUNCTION_BLOCK "FB_OrinCommandSnapshotValidator"
 { S7_Optimized_Access := 'TRUE' }
-VERSION : 0.5
+VERSION : 0.6
    VAR_INPUT
       NewDataReady : Bool;
       Raw : Array[0..63] of Word;
@@ -38,6 +38,7 @@ VERSION : 0.5
       HaveSeenSessionState : Bool;
       SeenSessionState : DWord;
       AcceptedSessionState : DWord;
+      LastSnapshotSequenceState : DWord;
       LastHeartbeatState : DWord;
       LastCommandSequenceState : DWord;
       SessionRearmRequiredState : Bool;
@@ -59,9 +60,10 @@ VERSION : 0.5
       StructuralValid : Bool;
       SessionChanged : Bool;
       RearmRising : Bool;
+      SessionWasPendingAtScanStart : Bool;
+      PendingSessionAtScanStart : DWord;
       HeartbeatProgressedThisScan : Bool;
       CommandProgressedThisScan : Bool;
-      SequenceDelta : DWord;
       FiniteOk : Bool;
       ModeFlagsOk : Bool;
       RangeOk : Bool;
@@ -79,6 +81,11 @@ BEGIN
    #HeartbeatProgressedThisScan := FALSE;
    #CommandProgressedThisScan := FALSE;
    #PayloadAcceptedThisScan := FALSE;
+   // Capture the pending state before processing this scan's new snapshot.
+   // A re-arm edge may acknowledge only a session already pending previously.
+   #SessionWasPendingAtScanStart :=
+      #HaveSeenSessionState AND #SessionRearmRequiredState;
+   #PendingSessionAtScanStart := #SeenSessionState;
    #RearmRising := #SessionRearm AND NOT #SessionRearmPrevious;
    #SessionRearmPrevious := #SessionRearm;
 
@@ -127,19 +134,35 @@ BEGIN
             #HaveSeenSessionState := TRUE;
             #SeenSessionState := #SessionId;
             #SessionRearmRequiredState := TRUE;
+            #LastSnapshotSequenceState := #BeginSequence;
             #LastHeartbeatState := #Heartbeat;
             #LastCommandSequenceState := #CommandSequence;
             #HeartbeatProgressedThisScan := TRUE;
             #CommandProgressedThisScan := TRUE;
          ELSE
-            IF #Heartbeat <> #LastHeartbeatState THEN
+            IF "FC_IsDWordForward"(
+               Candidate := #BeginSequence,
+               Previous := #LastSnapshotSequenceState) THEN
+               #LastSnapshotSequenceState := #BeginSequence;
+            ELSE
+               #RejectReasonState := 8; // SEQUENCE_NOT_ADVANCING
+               #StructuralValid := FALSE;
+            END_IF;
+
+            IF "FC_IsDWordForward"(
+               Candidate := #Heartbeat,
+               Previous := #LastHeartbeatState) THEN
                #LastHeartbeatState := #Heartbeat;
                #HeartbeatProgressedThisScan := TRUE;
+            ELSE
+               #RejectReasonState := 8; // COUNTER_NOT_ADVANCING
+               #StructuralValid := FALSE;
             END_IF;
 
             IF #CommandSequence <> #LastCommandSequenceState THEN
-               #SequenceDelta := #CommandSequence - #LastCommandSequenceState;
-               IF #SequenceDelta < 16#80000000 THEN
+               IF "FC_IsDWordForward"(
+                  Candidate := #CommandSequence,
+                  Previous := #LastCommandSequenceState) THEN
                   #LastCommandSequenceState := #CommandSequence;
                   #CommandProgressedThisScan := TRUE;
                ELSE
@@ -304,7 +327,8 @@ BEGIN
    // A rising re-arm edge acknowledges only a session already observed by a
    // structurally valid snapshot. Holding the input TRUE across a future
    // session change cannot silently acknowledge that new session.
-   IF #RearmRising AND #HaveSeenSessionState THEN
+   IF #RearmRising AND #SessionWasPendingAtScanStart AND
+      (#PendingSessionAtScanStart = #SeenSessionState) THEN
       #SessionRearmRequiredState := FALSE;
       #AcceptedSessionState := #SeenSessionState;
       #RejectReasonState := 0;
