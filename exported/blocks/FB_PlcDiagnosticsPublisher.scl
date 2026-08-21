@@ -1,0 +1,86 @@
+FUNCTION_BLOCK "FB_PlcDiagnosticsPublisher"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      PublishPeriodMs : UInt;
+      Model : "UDT_PlcDiagnosticsModel";
+   END_VAR
+   VAR_IN_OUT
+      Holding : Array[0..319] of Word;
+   END_VAR
+   VAR_OUTPUT
+      Published : Bool;
+      Sequence : DWord;
+      DiagnosticHeartbeat : DWord;
+      MonotonicMs : DWord;
+      CalculatedCrc : DWord;
+   END_VAR
+   VAR
+      LastSessionId : DWord;
+      SequenceState : DWord;
+      HeartbeatState : DWord;
+      MonotonicState : DWord;
+      PublishTimer : TON_TIME;
+   END_VAR
+   VAR_TEMP
+      Frame : Array[0..63] of Word;
+      LocalModel : "UDT_PlcDiagnosticsModel";
+      PublishNow : Bool;
+      CopyIndex : Int;
+      InvalidBegin : DWord;
+   END_VAR
+
+BEGIN
+   #Published := FALSE;
+
+   IF #Enable THEN
+      #PublishTimer(IN := TRUE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      #PublishNow := #PublishTimer.Q;
+
+      IF #Model.PlcSessionId <> #LastSessionId THEN
+         #LastSessionId := #Model.PlcSessionId;
+         #SequenceState := 16#00000000;
+         #HeartbeatState := 16#00000000;
+         #MonotonicState := 16#00000000;
+         #PublishNow := TRUE;
+      END_IF;
+
+      IF #PublishNow THEN
+         #SequenceState := #SequenceState + 16#00000001;
+         #HeartbeatState := #HeartbeatState + 16#00000001;
+         #MonotonicState := #MonotonicState + UINT_TO_DWORD(#PublishPeriodMs);
+
+         #LocalModel := #Model;
+         #LocalModel.DiagnosticHeartbeat := #HeartbeatState;
+         #LocalModel.PlcMonotonicMs := #MonotonicState;
+         #CalculatedCrc := "FC_EncodePlcDiagnosticsSnapshot"(
+            Sequence := #SequenceState,
+            Model := #LocalModel,
+            Frame => #Frame);
+
+         // Publish body/footer first and begin sequence last. A concurrent
+         // FC03 read sees either a coherent frame or a torn sequence pair.
+         #InvalidBegin := #SequenceState - 16#00000001;
+         #Holding[196] := DWORD_TO_WORD(SHR(IN := #InvalidBegin, N := 16));
+         #Holding[197] := DWORD_TO_WORD(#InvalidBegin);
+         FOR #CopyIndex := 0 TO 3 DO
+            #Holding[192 + #CopyIndex] := #Frame[#CopyIndex];
+         END_FOR;
+         FOR #CopyIndex := 6 TO 63 DO
+            #Holding[192 + #CopyIndex] := #Frame[#CopyIndex];
+         END_FOR;
+         #Holding[196] := #Frame[4];
+         #Holding[197] := #Frame[5];
+         #Published := TRUE;
+
+         #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      END_IF;
+   ELSE
+      #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+   END_IF;
+
+   #Sequence := #SequenceState;
+   #DiagnosticHeartbeat := #HeartbeatState;
+   #MonotonicMs := #MonotonicState;
+END_FUNCTION_BLOCK

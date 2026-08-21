@@ -42,21 +42,33 @@ def main() -> int:
     print("registers=" + " ".join(f"{value:04X}" for value in registers))
 
     if quantity == 64:
+        block_rules = {
+            0: (0x5243, range(30, 60)),
+            64: (0x5253, range(48, 60)),
+            128: (0x5247, range(50, 60)),
+            192: (0x5244, range(50, 60)),
+            256: (0x5246, range(47, 60)),
+        }
         begin_sequence = (registers[4] << 16) | registers[5]
         end_sequence = (registers[62] << 16) | registers[63]
         wire_crc = (registers[60] << 16) | registers[61]
         crc_bytes = struct.pack(">60H", *registers[:60])
         calculated_crc = zlib.crc32(crc_bytes) & 0xFFFFFFFF
-        header_ok = registers[1:4] == [1, 1, 64]
+        expected_magic, reserved_range = block_rules.get(
+            start, (None, range(0, 0)))
+        magic_ok = expected_magic is not None and registers[0] == expected_magic
+        header_ok = magic_ok and registers[1:4] == [1, 1, 64]
+        reserved_ok = all(registers[index] == 0 for index in reserved_range)
         sequence_ok = begin_sequence == end_sequence
         crc_ok = calculated_crc == wire_crc
         print(
-            f"snapshot header_ok={header_ok} sequence_ok={sequence_ok} "
+            f"snapshot magic_ok={magic_ok} header_ok={header_ok} "
+            f"reserved_ok={reserved_ok} sequence_ok={sequence_ok} "
             f"crc_ok={crc_ok} begin={begin_sequence:08X} "
             f"end={end_sequence:08X} calculated_crc={calculated_crc:08X} "
             f"wire_crc={wire_crc:08X}"
         )
-        if not (header_ok and sequence_ok and crc_ok):
+        if not (header_ok and reserved_ok and sequence_ok and crc_ok):
             return 1
     return 0
 

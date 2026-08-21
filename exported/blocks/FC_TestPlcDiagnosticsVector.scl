@@ -1,0 +1,84 @@
+FUNCTION "FC_TestPlcDiagnosticsVector" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      Model : "UDT_PlcDiagnosticsModel";
+      Frame : Array[0..63] of Word;
+      Expected : Array[0..63] of Word;
+      ActualCrc : DWord;
+      Index : Int;
+      Match : Bool;
+   END_VAR
+
+BEGIN
+   // Authoritative rover-core-ros2 caba72c diagnostics test vector.
+   #Model.PlcSessionId := 16#10203040;
+   #Model.DiagnosticHeartbeat := 16#00000200;
+   #Model.PlcMonotonicMs := 16#00123456;
+   #Model.ScanTimeUs := 16#00001388; // 5000
+   #Model.MaxScanTimeUs := 16#00001B58; // 7000
+   #Model.DiagnosticFlags := 16#017F;
+   #Model.MbServerStatus := 16#0000;
+   #Model.EspMbClientStatus := 16#0000;
+   #Model.LastCommandRejectReason := 0;
+   #Model.OrinCommandAcceptCount := 16#000003E8;
+   #Model.OrinCommandRejectCount := 16#0000000A;
+   #Model.OrinCrcErrorCount := 16#00000001;
+   #Model.OrinProtocolErrorCount := 16#00000002;
+   #Model.OrinTimeoutCount := 16#00000003;
+   #Model.EspPollSuccessCount := 16#000007D0;
+   #Model.EspPollErrorCount := 16#00000004;
+   #Model.EspCrcErrorCount := 16#00000005;
+   #Model.EspStaleCount := 16#00000006;
+   #Model.G16InvalidFrameCount := 16#00000007;
+   #Model.G16FrameLostCount := 16#00000008;
+   #Model.G16FailsafeCount := 16#00000009;
+   #Model.ControlledStopCount := 16#0000000A;
+   #Model.FaultTransitionCount := 16#0000000B;
+   #Model.OutputWriteViolationCount := 16#0000000C;
+
+   #ActualCrc := "FC_EncodePlcDiagnosticsSnapshot"(
+      Sequence := 16#00000030,
+      Model := #Model,
+      Frame => #Frame);
+
+   #Expected[0] := 16#5244; #Expected[1] := 16#0001;
+   #Expected[2] := 16#0001; #Expected[3] := 16#0040;
+   #Expected[4] := 16#0000; #Expected[5] := 16#0030;
+   #Expected[6] := 16#1020; #Expected[7] := 16#3040;
+   #Expected[8] := 16#0000; #Expected[9] := 16#0200;
+   #Expected[10] := 16#0012; #Expected[11] := 16#3456;
+   #Expected[12] := 16#0000; #Expected[13] := 16#1388;
+   #Expected[14] := 16#0000; #Expected[15] := 16#1B58;
+   #Expected[16] := 16#017F; #Expected[17] := 16#0000;
+   #Expected[18] := 16#0000; #Expected[19] := 16#0000;
+   #Expected[20] := 16#0000; #Expected[21] := 16#03E8;
+   #Expected[22] := 16#0000; #Expected[23] := 16#000A;
+   #Expected[24] := 16#0000; #Expected[25] := 16#0001;
+   #Expected[26] := 16#0000; #Expected[27] := 16#0002;
+   #Expected[28] := 16#0000; #Expected[29] := 16#0003;
+   #Expected[30] := 16#0000; #Expected[31] := 16#07D0;
+   #Expected[32] := 16#0000; #Expected[33] := 16#0004;
+   #Expected[34] := 16#0000; #Expected[35] := 16#0005;
+   #Expected[36] := 16#0000; #Expected[37] := 16#0006;
+   #Expected[38] := 16#0000; #Expected[39] := 16#0007;
+   #Expected[40] := 16#0000; #Expected[41] := 16#0008;
+   #Expected[42] := 16#0000; #Expected[43] := 16#0009;
+   #Expected[44] := 16#0000; #Expected[45] := 16#000A;
+   #Expected[46] := 16#0000; #Expected[47] := 16#000B;
+   #Expected[48] := 16#0000; #Expected[49] := 16#000C;
+   FOR #Index := 50 TO 59 DO
+      #Expected[#Index] := 16#0000;
+   END_FOR;
+   #Expected[60] := 16#0253; #Expected[61] := 16#0C29;
+   #Expected[62] := 16#0000; #Expected[63] := 16#0030;
+
+   #Match := #ActualCrc = 16#02530C29;
+   FOR #Index := 0 TO 63 DO
+      IF #Frame[#Index] <> #Expected[#Index] THEN
+         #Match := FALSE;
+      END_IF;
+   END_FOR;
+
+   #FC_TestPlcDiagnosticsVector := #Match;
+END_FUNCTION

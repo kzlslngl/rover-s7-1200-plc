@@ -1,0 +1,79 @@
+FUNCTION "FC_EncodePlcDiagnosticsSnapshot" : DWord
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Sequence : DWord;
+      Model : "UDT_PlcDiagnosticsModel";
+   END_VAR
+   VAR_OUTPUT
+      Frame : Array[0..63] of Word;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+      Crc : DWord;
+   END_VAR
+
+BEGIN
+   FOR #Index := 0 TO 63 DO
+      #Frame[#Index] := 16#0000;
+   END_FOR;
+
+   #Frame[0] := 16#5244;
+   #Frame[1] := 16#0001;
+   #Frame[2] := 16#0001;
+   #Frame[3] := 16#0040;
+   #Frame[4] := DWORD_TO_WORD(SHR(IN := #Sequence, N := 16));
+   #Frame[5] := DWORD_TO_WORD(#Sequence);
+   #Frame[6] := DWORD_TO_WORD(SHR(IN := #Model.PlcSessionId, N := 16));
+   #Frame[7] := DWORD_TO_WORD(#Model.PlcSessionId);
+   #Frame[8] := DWORD_TO_WORD(SHR(IN := #Model.DiagnosticHeartbeat, N := 16));
+   #Frame[9] := DWORD_TO_WORD(#Model.DiagnosticHeartbeat);
+   #Frame[10] := DWORD_TO_WORD(SHR(IN := #Model.PlcMonotonicMs, N := 16));
+   #Frame[11] := DWORD_TO_WORD(#Model.PlcMonotonicMs);
+   #Frame[12] := DWORD_TO_WORD(SHR(IN := #Model.ScanTimeUs, N := 16));
+   #Frame[13] := DWORD_TO_WORD(#Model.ScanTimeUs);
+   #Frame[14] := DWORD_TO_WORD(SHR(IN := #Model.MaxScanTimeUs, N := 16));
+   #Frame[15] := DWORD_TO_WORD(#Model.MaxScanTimeUs);
+   #Frame[16] := #Model.DiagnosticFlags AND 16#03FF;
+   #Frame[17] := #Model.MbServerStatus;
+   #Frame[18] := #Model.EspMbClientStatus;
+   #Frame[19] := UINT_TO_WORD(#Model.LastCommandRejectReason);
+   #Frame[20] := DWORD_TO_WORD(SHR(IN := #Model.OrinCommandAcceptCount, N := 16));
+   #Frame[21] := DWORD_TO_WORD(#Model.OrinCommandAcceptCount);
+   #Frame[22] := DWORD_TO_WORD(SHR(IN := #Model.OrinCommandRejectCount, N := 16));
+   #Frame[23] := DWORD_TO_WORD(#Model.OrinCommandRejectCount);
+   #Frame[24] := DWORD_TO_WORD(SHR(IN := #Model.OrinCrcErrorCount, N := 16));
+   #Frame[25] := DWORD_TO_WORD(#Model.OrinCrcErrorCount);
+   #Frame[26] := DWORD_TO_WORD(SHR(IN := #Model.OrinProtocolErrorCount, N := 16));
+   #Frame[27] := DWORD_TO_WORD(#Model.OrinProtocolErrorCount);
+   #Frame[28] := DWORD_TO_WORD(SHR(IN := #Model.OrinTimeoutCount, N := 16));
+   #Frame[29] := DWORD_TO_WORD(#Model.OrinTimeoutCount);
+   #Frame[30] := DWORD_TO_WORD(SHR(IN := #Model.EspPollSuccessCount, N := 16));
+   #Frame[31] := DWORD_TO_WORD(#Model.EspPollSuccessCount);
+   #Frame[32] := DWORD_TO_WORD(SHR(IN := #Model.EspPollErrorCount, N := 16));
+   #Frame[33] := DWORD_TO_WORD(#Model.EspPollErrorCount);
+   #Frame[34] := DWORD_TO_WORD(SHR(IN := #Model.EspCrcErrorCount, N := 16));
+   #Frame[35] := DWORD_TO_WORD(#Model.EspCrcErrorCount);
+   #Frame[36] := DWORD_TO_WORD(SHR(IN := #Model.EspStaleCount, N := 16));
+   #Frame[37] := DWORD_TO_WORD(#Model.EspStaleCount);
+   #Frame[38] := DWORD_TO_WORD(SHR(IN := #Model.G16InvalidFrameCount, N := 16));
+   #Frame[39] := DWORD_TO_WORD(#Model.G16InvalidFrameCount);
+   #Frame[40] := DWORD_TO_WORD(SHR(IN := #Model.G16FrameLostCount, N := 16));
+   #Frame[41] := DWORD_TO_WORD(#Model.G16FrameLostCount);
+   #Frame[42] := DWORD_TO_WORD(SHR(IN := #Model.G16FailsafeCount, N := 16));
+   #Frame[43] := DWORD_TO_WORD(#Model.G16FailsafeCount);
+   #Frame[44] := DWORD_TO_WORD(SHR(IN := #Model.ControlledStopCount, N := 16));
+   #Frame[45] := DWORD_TO_WORD(#Model.ControlledStopCount);
+   #Frame[46] := DWORD_TO_WORD(SHR(IN := #Model.FaultTransitionCount, N := 16));
+   #Frame[47] := DWORD_TO_WORD(#Model.FaultTransitionCount);
+   #Frame[48] := DWORD_TO_WORD(SHR(IN := #Model.OutputWriteViolationCount, N := 16));
+   #Frame[49] := DWORD_TO_WORD(#Model.OutputWriteViolationCount);
+
+   // Frame[50..59] are reserved and remain zero.
+   #Crc := "FC_Crc32IsoHdlc"(Registers := #Frame, RegisterCount := 60);
+   #Frame[60] := DWORD_TO_WORD(SHR(IN := #Crc, N := 16));
+   #Frame[61] := DWORD_TO_WORD(#Crc);
+   #Frame[62] := #Frame[4];
+   #Frame[63] := #Frame[5];
+   #FC_EncodePlcDiagnosticsSnapshot := #Crc;
+END_FUNCTION

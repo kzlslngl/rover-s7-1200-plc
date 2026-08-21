@@ -1,0 +1,200 @@
+FUNCTION_BLOCK "FB_PlcDiagnosticsManager"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      PlcSessionId : DWord;
+      CycleTimeValid : Bool;
+      CycleTimeMs : Real;
+      MaximumCycleTimeMs : Real;
+      MbServerEnabled : Bool;
+      MbServerError : Bool;
+      MbServerStatus : Word;
+      OrinNewDataReady : Bool;
+      OrinDataValid : Bool;
+      OrinHeartbeatFresh : Bool;
+      OrinCommandFresh : Bool;
+      OrinRejectReason : UInt;
+      AcceptedOrinSessionId : DWord;
+      AcceptedCommandSequence : DWord;
+      EspClientEnabled : Bool;
+      EspPollDone : Bool;
+      EspPollError : Bool;
+      EspClientStatus : Word;
+      G16DataValid : Bool;
+      G16FrameCounterFresh : Bool;
+      G16RejectBits : Word;
+      G16InvalidFrameCount : DWord;
+      G16FrameLostCount : DWord;
+      G16FailsafeCount : DWord;
+      SafetyInputsValid : Bool;
+      ActuatorFeedbackValid : Bool;
+      ControlledStopActive : Bool;
+      FaultBits : DWord;
+      OutputWriteViolation : Bool;
+   END_VAR
+   VAR_OUTPUT
+      Model : "UDT_PlcDiagnosticsModel";
+   END_VAR
+   VAR
+      HaveAcceptedCommand : Bool;
+      LastAcceptedSession : DWord;
+      LastAcceptedCommand : DWord;
+      OrinCommandAcceptCountState : DWord;
+      OrinCommandRejectCountState : DWord;
+      OrinCrcErrorCountState : DWord;
+      OrinProtocolErrorCountState : DWord;
+      OrinTimeoutCountState : DWord;
+      OrinTimeoutWasActive : Bool;
+      EspPollSuccessCountState : DWord;
+      EspPollErrorCountState : DWord;
+      EspCrcErrorCountState : DWord;
+      EspStaleCountState : DWord;
+      EspStaleWasActive : Bool;
+      ControlledStopCountState : DWord;
+      ControlledStopPrevious : Bool;
+      HaveFaultSample : Bool;
+      LastFaultBits : DWord;
+      FaultTransitionCountState : DWord;
+      OutputWriteViolationPrevious : Bool;
+      OutputWriteViolationCountState : DWord;
+   END_VAR
+   VAR_TEMP
+      DiagnosticFlagsValue : Word;
+      OrinTimeoutActive : Bool;
+      EspStaleActive : Bool;
+   END_VAR
+
+BEGIN
+   // Count each newly accepted typed command once. The validator is the
+   // progression authority; diagnostics only observes its accepted pair.
+   IF #OrinNewDataReady AND #OrinDataValid AND
+      ((NOT #HaveAcceptedCommand) OR
+       (#AcceptedOrinSessionId <> #LastAcceptedSession) OR
+       (#AcceptedCommandSequence <> #LastAcceptedCommand)) THEN
+      #HaveAcceptedCommand := TRUE;
+      #LastAcceptedSession := #AcceptedOrinSessionId;
+      #LastAcceptedCommand := #AcceptedCommandSequence;
+      #OrinCommandAcceptCountState :=
+         #OrinCommandAcceptCountState + 16#00000001;
+   END_IF;
+
+   IF #OrinNewDataReady AND (#OrinRejectReason <> 0) THEN
+      #OrinCommandRejectCountState :=
+         #OrinCommandRejectCountState + 16#00000001;
+      IF #OrinRejectReason = 4 THEN
+         #OrinCrcErrorCountState := #OrinCrcErrorCountState + 16#00000001;
+      ELSIF #OrinRejectReason = 2 THEN
+         #OrinProtocolErrorCountState :=
+            #OrinProtocolErrorCountState + 16#00000001;
+      END_IF;
+   END_IF;
+
+   #OrinTimeoutActive :=
+      (#OrinRejectReason = 6) OR (#OrinRejectReason = 7);
+   IF #OrinTimeoutActive AND NOT #OrinTimeoutWasActive THEN
+      #OrinTimeoutCountState := #OrinTimeoutCountState + 16#00000001;
+   END_IF;
+   #OrinTimeoutWasActive := #OrinTimeoutActive;
+
+   IF #EspPollDone THEN
+      #EspPollSuccessCountState := #EspPollSuccessCountState + 16#00000001;
+      IF (#G16RejectBits AND 16#0008) <> 0 THEN
+         #EspCrcErrorCountState := #EspCrcErrorCountState + 16#00000001;
+      END_IF;
+   END_IF;
+   IF #EspPollError THEN
+      #EspPollErrorCountState := #EspPollErrorCountState + 16#00000001;
+   END_IF;
+
+   #EspStaleActive := (NOT #G16DataValid) AND
+      ((#G16RejectBits AND 16#0101) <> 0);
+   IF #EspStaleActive AND NOT #EspStaleWasActive THEN
+      #EspStaleCountState := #EspStaleCountState + 16#00000001;
+   END_IF;
+   #EspStaleWasActive := #EspStaleActive;
+
+   IF #ControlledStopActive AND NOT #ControlledStopPrevious THEN
+      #ControlledStopCountState :=
+         #ControlledStopCountState + 16#00000001;
+   END_IF;
+   #ControlledStopPrevious := #ControlledStopActive;
+
+   IF #HaveFaultSample THEN
+      IF #FaultBits <> #LastFaultBits THEN
+         #FaultTransitionCountState :=
+            #FaultTransitionCountState + 16#00000001;
+         #LastFaultBits := #FaultBits;
+      END_IF;
+   ELSE
+      #HaveFaultSample := TRUE;
+      #LastFaultBits := #FaultBits;
+   END_IF;
+
+   IF #OutputWriteViolation AND NOT #OutputWriteViolationPrevious THEN
+      #OutputWriteViolationCountState :=
+         #OutputWriteViolationCountState + 16#00000001;
+   END_IF;
+   #OutputWriteViolationPrevious := #OutputWriteViolation;
+
+   #DiagnosticFlagsValue := 16#0000;
+   IF #CycleTimeValid THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0001;
+   END_IF;
+   IF #MbServerEnabled AND NOT #MbServerError THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0002;
+   END_IF;
+   // No explicit connected output exists in the current ESP MB_CLIENT
+   // wrapper. Keep ESP_CLIENT_CONNECTED conservative until it is exposed.
+   IF #OrinHeartbeatFresh AND #OrinCommandFresh THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0008;
+   END_IF;
+   IF #G16DataValid THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0010;
+   END_IF;
+   IF #G16FrameCounterFresh THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0020;
+   END_IF;
+   IF #SafetyInputsValid THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0040;
+   END_IF;
+   IF #ActuatorFeedbackValid THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0080;
+   END_IF;
+   #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0100;
+   IF #OutputWriteViolation THEN
+      #DiagnosticFlagsValue := #DiagnosticFlagsValue OR 16#0200;
+   END_IF;
+
+   #Model.PlcSessionId := #PlcSessionId;
+   #Model.DiagnosticHeartbeat := 16#00000000;
+   #Model.PlcMonotonicMs := 16#00000000;
+   IF #CycleTimeValid AND (#CycleTimeMs >= 0.0) AND
+      (#MaximumCycleTimeMs >= 0.0) THEN
+      #Model.ScanTimeUs := DINT_TO_DWORD(
+         REAL_TO_DINT(#CycleTimeMs * 1000.0));
+      #Model.MaxScanTimeUs := DINT_TO_DWORD(
+         REAL_TO_DINT(#MaximumCycleTimeMs * 1000.0));
+   ELSE
+      #Model.ScanTimeUs := 16#00000000;
+      #Model.MaxScanTimeUs := 16#00000000;
+   END_IF;
+   #Model.DiagnosticFlags := #DiagnosticFlagsValue;
+   #Model.MbServerStatus := #MbServerStatus;
+   #Model.EspMbClientStatus := #EspClientStatus;
+   #Model.LastCommandRejectReason := #OrinRejectReason;
+   #Model.OrinCommandAcceptCount := #OrinCommandAcceptCountState;
+   #Model.OrinCommandRejectCount := #OrinCommandRejectCountState;
+   #Model.OrinCrcErrorCount := #OrinCrcErrorCountState;
+   #Model.OrinProtocolErrorCount := #OrinProtocolErrorCountState;
+   #Model.OrinTimeoutCount := #OrinTimeoutCountState;
+   #Model.EspPollSuccessCount := #EspPollSuccessCountState;
+   #Model.EspPollErrorCount := #EspPollErrorCountState;
+   #Model.EspCrcErrorCount := #EspCrcErrorCountState;
+   #Model.EspStaleCount := #EspStaleCountState;
+   #Model.G16InvalidFrameCount := #G16InvalidFrameCount;
+   #Model.G16FrameLostCount := #G16FrameLostCount;
+   #Model.G16FailsafeCount := #G16FailsafeCount;
+   #Model.ControlledStopCount := #ControlledStopCountState;
+   #Model.FaultTransitionCount := #FaultTransitionCountState;
+   #Model.OutputWriteViolationCount := #OutputWriteViolationCountState;
+END_FUNCTION_BLOCK

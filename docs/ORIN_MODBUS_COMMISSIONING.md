@@ -159,6 +159,34 @@ uygulanır. Bu bench aşamasında yalnız `SAFE_DISABLED` ve `CONTROLLED_STOP`
 mode'ları `DataValid=TRUE` olabilir; AUTO mode'ları autonomy/safety guard
 entegrasyonu tamamlanana kadar `RejectReason=11` ile kapalıdır.
 
+V0.6 snapshot sequence, heartbeat ve command sequence icin modulo-2^32
+yarim-aralik progression uygular. Duplicate/backward snapshot ve backward
+heartbeat `RejectReason=8` olur; `16#FFFF_FFFF -> 0` wrap ileri kabul edilir.
+Re-arm yalniz onceki scan'de pending oldugu bilinen session icin taze
+`FALSE -> TRUE -> FALSE` kenariyla kabul edilir. Fiziksel kabul 7/7 gecmistir.
+
+## PLC diagnostics publisher
+
+`PLC_DIAGNOSTICS` wire offset `192..255` icin import sirasi:
+
+1. `exported/udt/UDT_PlcDiagnosticsModel.scl`
+2. `exported/db/DB_PlcDiagnosticsModel.scl`
+3. `exported/blocks/FC_EncodePlcDiagnosticsSnapshot.scl`
+4. `exported/blocks/FC_TestPlcDiagnosticsVector.scl`
+5. `exported/blocks/FB_PlcDiagnosticsManager.scl`
+6. `exported/blocks/FB_PlcDiagnosticsPublisher.scl`
+
+Ortak `caba72c` test vektoru `FC_TestPlcDiagnosticsVector=TRUE` ve
+`CRC=16#0253_0C29` sonucunu verdi. Fiziksel FC03 testinde magic `16#5244`,
+protocol `1.1`, 64 register, begin/end sequence, CRC ve reserved `50..59`
+kontrolleri uc ornekte gecti. Publisher periyodu TON tabanli `20 ms`'dir.
+
+Mevcut ESP MB_CLIENT wrapper gercek connected cikisi sunmadigi icin
+`ESP_CLIENT_CONNECTED` diagnostic biti konservatif olarak sifir kalir.
+`ESP_SNAPSHOT_FRESH` ve `G16_FRAME_FRESH` ayri ve gercek validator sonuclaridir.
+Aktuator feedback ve output-write-violation detector tamamlanana kadar ilgili
+validity/violation bitleri kapali kalir.
+
 ## PLC boot/session manager
 
 Import sırası:

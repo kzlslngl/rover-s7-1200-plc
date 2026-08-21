@@ -1,0 +1,29 @@
+TYPE "UDT_PlcDiagnosticsModel"
+VERSION : 0.1
+   STRUCT
+      PlcSessionId : DWord;
+      DiagnosticHeartbeat : DWord;
+      PlcMonotonicMs : DWord;
+      ScanTimeUs : DWord;
+      MaxScanTimeUs : DWord;
+      DiagnosticFlags : Word;
+      MbServerStatus : Word;
+      EspMbClientStatus : Word;
+      LastCommandRejectReason : UInt;
+      OrinCommandAcceptCount : DWord;
+      OrinCommandRejectCount : DWord;
+      OrinCrcErrorCount : DWord;
+      OrinProtocolErrorCount : DWord;
+      OrinTimeoutCount : DWord;
+      EspPollSuccessCount : DWord;
+      EspPollErrorCount : DWord;
+      EspCrcErrorCount : DWord;
+      EspStaleCount : DWord;
+      G16InvalidFrameCount : DWord;
+      G16FrameLostCount : DWord;
+      G16FailsafeCount : DWord;
+      ControlledStopCount : DWord;
+      FaultTransitionCount : DWord;
+      OutputWriteViolationCount : DWord;
+   END_STRUCT;
+END_TYPE
