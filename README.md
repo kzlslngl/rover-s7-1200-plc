@@ -18,7 +18,8 @@ firmware depolarından bağımsız sürümlemek içindir.
 
 Protokolün ana otoritesi `rover_core_ros2` deposundadır:
 
-- Referans commit: `caba72c7cce4fdc64328caa1b586c3be68077b23`
+- Referans commit: `854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
+  (`agent/local-metric-map`)
 - İnsan-okunur sözleşme:
   `docs/PLC_ORIN_G16_HABERLESME_SOZLESMESI.md`
 - Makine-okunur register şeması:
@@ -46,8 +47,11 @@ PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlam
    VM–PLC bench kabul kapıları;
 5. [`PLC_APPLICATION_REVIEW_2026-08-21.md`](PLC_APPLICATION_REVIEW_2026-08-21.md):
    canlı VM–PLC FC03 sonucu ve uygulama dalında kapanması gereken bulgular;
-6. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
-7. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+6. [`ORIN_PHYSICAL_MODBUS_HANDOFF_2026-08-21.md`](ORIN_PHYSICAL_MODBUS_HANDOFF_2026-08-21.md):
+   üretim ROS bridge ile tamamlanan fiziksel FC16/FC03, session re-arm,
+   payload-limit ve accepted-sequence bench sonucu;
+7. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+8. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
    validator geliştirme.
 
 Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
