@@ -11,6 +11,12 @@ register'ları, typed alanları, CRC ve progression sonucu
 [`PLC_DIAGNOSTICS_PHYSICAL_ACCEPTANCE_2026-08-21.md`](PLC_DIAGNOSTICS_PHYSICAL_ACCEPTANCE_2026-08-21.md)
 belgesinde kayıtlıdır.
 
+`ACTIVE_CONFIG` publisher'ın üç ardışık salt-okunur FC03 örneği, timeout
+değerleri, `ConfigFlags=0x0006`, ham register'ları ve kapalı mekanik validity
+bitleri
+[`ACTIVE_CONFIG_PHYSICAL_ACCEPTANCE_2026-08-24.md`](ACTIVE_CONFIG_PHYSICAL_ACCEPTANCE_2026-08-24.md)
+belgesinde kayıtlıdır.
+
 Bu belge PLC Codex'i için Ana Proje Codex'i tarafından hazırlanmıştır. Kaynak
 otorite
 `rover-core-ros2/agent/local-metric-map@854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
