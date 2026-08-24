@@ -1,0 +1,60 @@
+FUNCTION_BLOCK "FB_ActiveConfigPublisher"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;
+      PublishPeriodMs : UInt;
+      Model : "UDT_ActiveConfigModel";
+   END_VAR
+   VAR_IN_OUT
+      Holding : Array[0..319] of Word;
+   END_VAR
+   VAR_OUTPUT
+      Published : Bool;
+      Sequence : DWord;
+      CalculatedCrc : DWord;
+   END_VAR
+   VAR
+      SequenceState : DWord;
+      PublishTimer : TON_TIME;
+   END_VAR
+   VAR_TEMP
+      Frame : Array[0..63] of Word;
+      PublishNow : Bool;
+      CopyIndex : Int;
+      InvalidBegin : DWord;
+   END_VAR
+
+BEGIN
+   #Published := FALSE;
+
+   IF #Enable THEN
+      #PublishTimer(IN := TRUE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      #PublishNow := #PublishTimer.Q;
+      IF #PublishNow THEN
+         #SequenceState := #SequenceState + 16#00000001;
+         #CalculatedCrc := "FC_EncodeActiveConfigSnapshot"(
+            Sequence := #SequenceState,
+            Model := #Model,
+            Frame => #Frame);
+
+         #InvalidBegin := #SequenceState - 16#00000001;
+         #Holding[260] := DWORD_TO_WORD(SHR(IN := #InvalidBegin, N := 16));
+         #Holding[261] := DWORD_TO_WORD(#InvalidBegin);
+         FOR #CopyIndex := 0 TO 3 DO
+            #Holding[256 + #CopyIndex] := #Frame[#CopyIndex];
+         END_FOR;
+         FOR #CopyIndex := 6 TO 63 DO
+            #Holding[256 + #CopyIndex] := #Frame[#CopyIndex];
+         END_FOR;
+         #Holding[260] := #Frame[4];
+         #Holding[261] := #Frame[5];
+         #Published := TRUE;
+         #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+      END_IF;
+   ELSE
+      #PublishTimer(IN := FALSE, PT := UINT_TO_TIME(#PublishPeriodMs));
+   END_IF;
+
+   #Sequence := #SequenceState;
+END_FUNCTION_BLOCK

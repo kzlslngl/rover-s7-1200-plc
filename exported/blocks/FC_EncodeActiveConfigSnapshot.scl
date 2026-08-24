@@ -1,0 +1,87 @@
+FUNCTION "FC_EncodeActiveConfigSnapshot" : DWord
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Sequence : DWord;
+      Model : "UDT_ActiveConfigModel";
+   END_VAR
+   VAR_OUTPUT
+      Frame : Array[0..63] of Word;
+   END_VAR
+   VAR_TEMP
+      Index : Int;
+      Crc : DWord;
+      Bits : DWord;
+   END_VAR
+
+BEGIN
+   FOR #Index := 0 TO 63 DO
+      #Frame[#Index] := 16#0000;
+   END_FOR;
+
+   #Frame[0] := 16#5246;
+   #Frame[1] := 16#0001;
+   #Frame[2] := 16#0001;
+   #Frame[3] := 16#0040;
+   #Frame[4] := DWORD_TO_WORD(SHR(IN := #Sequence, N := 16));
+   #Frame[5] := DWORD_TO_WORD(#Sequence);
+   #Frame[6] := DWORD_TO_WORD(SHR(IN := #Model.ConfigVersion, N := 16));
+   #Frame[7] := DWORD_TO_WORD(#Model.ConfigVersion);
+   #Frame[8] := DWORD_TO_WORD(SHR(IN := #Model.ConfigCrc32, N := 16));
+   #Frame[9] := DWORD_TO_WORD(#Model.ConfigCrc32);
+   #Frame[10] := #Model.ConfigFlags AND 16#01FF;
+   #Frame[11] := UINT_TO_WORD(#Model.G16LossPolicy);
+   #Frame[12] := DWORD_TO_WORD(SHR(IN := #Model.CommandTimeoutMs, N := 16));
+   #Frame[13] := DWORD_TO_WORD(#Model.CommandTimeoutMs);
+   #Frame[14] := DWORD_TO_WORD(SHR(IN := #Model.OrinHeartbeatTimeoutMs, N := 16));
+   #Frame[15] := DWORD_TO_WORD(#Model.OrinHeartbeatTimeoutMs);
+   #Frame[16] := DWORD_TO_WORD(SHR(IN := #Model.G16FrameTimeoutMs, N := 16));
+   #Frame[17] := DWORD_TO_WORD(#Model.G16FrameTimeoutMs);
+   #Frame[18] := DWORD_TO_WORD(SHR(IN := #Model.G16GatewayTimeoutMs, N := 16));
+   #Frame[19] := DWORD_TO_WORD(#Model.G16GatewayTimeoutMs);
+   #Frame[20] := DWORD_TO_WORD(SHR(IN := #Model.ControlledStopTimeoutMs, N := 16));
+   #Frame[21] := DWORD_TO_WORD(#Model.ControlledStopTimeoutMs);
+   #Frame[22] := DWORD_TO_WORD(SHR(IN := #Model.ManualNeutralHoldMs, N := 16));
+   #Frame[23] := DWORD_TO_WORD(#Model.ManualNeutralHoldMs);
+   #Frame[24] := DWORD_TO_WORD(SHR(IN := #Model.AutoG16GraceMs, N := 16));
+   #Frame[25] := DWORD_TO_WORD(#Model.AutoG16GraceMs);
+
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxForwardSpeedMps);
+   #Frame[26] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[27] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxReverseSpeedMps);
+   #Frame[28] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[29] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxSteeringAngleRad);
+   #Frame[30] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[31] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxAccelerationMps2);
+   #Frame[32] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[33] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxDecelerationMps2);
+   #Frame[34] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[35] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.MaxSteeringRateRadps);
+   #Frame[36] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[37] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.ControlledStopDecelerationMps2);
+   #Frame[38] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[39] := DWORD_TO_WORD(#Bits);
+   #Bits := "FC_Real32ToDWord"(Value := #Model.WheelbaseM);
+   #Frame[40] := DWORD_TO_WORD(SHR(IN := #Bits, N := 16));
+   #Frame[41] := DWORD_TO_WORD(#Bits);
+
+   #Frame[42] := DWORD_TO_WORD(SHR(IN := #Model.G16CalibrationVersion, N := 16));
+   #Frame[43] := DWORD_TO_WORD(#Model.G16CalibrationVersion);
+   #Frame[44] := DWORD_TO_WORD(SHR(IN := #Model.G16CalibrationCrc32, N := 16));
+   #Frame[45] := DWORD_TO_WORD(#Model.G16CalibrationCrc32);
+   #Frame[46] := UINT_TO_WORD(#Model.BrakeEffectUnit);
+   // Frame[47..59] are reserved and remain zero.
+
+   #Crc := "FC_Crc32IsoHdlc"(Registers := #Frame, RegisterCount := 60);
+   #Frame[60] := DWORD_TO_WORD(SHR(IN := #Crc, N := 16));
+   #Frame[61] := DWORD_TO_WORD(#Crc);
+   #Frame[62] := #Frame[4];
+   #Frame[63] := #Frame[5];
+   #FC_EncodeActiveConfigSnapshot := #Crc;
+END_FUNCTION

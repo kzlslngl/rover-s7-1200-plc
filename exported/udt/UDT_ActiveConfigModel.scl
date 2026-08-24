@@ -1,0 +1,27 @@
+TYPE "UDT_ActiveConfigModel"
+VERSION : 0.1
+   STRUCT
+      ConfigVersion : DWord;
+      ConfigCrc32 : DWord;
+      ConfigFlags : Word;
+      G16LossPolicy : UInt;
+      CommandTimeoutMs : DWord;
+      OrinHeartbeatTimeoutMs : DWord;
+      G16FrameTimeoutMs : DWord;
+      G16GatewayTimeoutMs : DWord;
+      ControlledStopTimeoutMs : DWord;
+      ManualNeutralHoldMs : DWord;
+      AutoG16GraceMs : DWord;
+      MaxForwardSpeedMps : Real;
+      MaxReverseSpeedMps : Real;
+      MaxSteeringAngleRad : Real;
+      MaxAccelerationMps2 : Real;
+      MaxDecelerationMps2 : Real;
+      MaxSteeringRateRadps : Real;
+      ControlledStopDecelerationMps2 : Real;
+      WheelbaseM : Real;
+      G16CalibrationVersion : DWord;
+      G16CalibrationCrc32 : DWord;
+      BrakeEffectUnit : UInt;
+   END_STRUCT;
+END_TYPE

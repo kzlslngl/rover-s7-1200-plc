@@ -1,0 +1,78 @@
+FUNCTION "FC_TestActiveConfigVector" : Bool
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      Model : "UDT_ActiveConfigModel";
+      Frame : Array[0..63] of Word;
+      Expected : Array[0..63] of Word;
+      ActualCrc : DWord;
+      Index : Int;
+      Match : Bool;
+   END_VAR
+
+BEGIN
+   // Authoritative rover-core-ros2 caba72c active-config test vector.
+   #Model.ConfigVersion := 16#00000001;
+   #Model.ConfigCrc32 := 16#89ABCDEF;
+   #Model.ConfigFlags := 16#01FF;
+   #Model.G16LossPolicy := 0;
+   #Model.CommandTimeoutMs := 250;
+   #Model.OrinHeartbeatTimeoutMs := 500;
+   #Model.G16FrameTimeoutMs := 100;
+   #Model.G16GatewayTimeoutMs := 500;
+   #Model.ControlledStopTimeoutMs := 5000;
+   #Model.ManualNeutralHoldMs := 500;
+   #Model.AutoG16GraceMs := 0;
+   #Model.MaxForwardSpeedMps := 2.0;
+   #Model.MaxReverseSpeedMps := 1.0;
+   #Model.MaxSteeringAngleRad := 0.6;
+   #Model.MaxAccelerationMps2 := 0.5;
+   #Model.MaxDecelerationMps2 := 1.25;
+   #Model.MaxSteeringRateRadps := 0.4;
+   #Model.ControlledStopDecelerationMps2 := 1.0;
+   #Model.WheelbaseM := 2.5;
+   #Model.G16CalibrationVersion := 1;
+   #Model.G16CalibrationCrc32 := 16#12345678;
+   #Model.BrakeEffectUnit := 1;
+
+   #ActualCrc := "FC_EncodeActiveConfigSnapshot"(
+      Sequence := 16#00000040, Model := #Model, Frame => #Frame);
+
+   #Expected[0] := 16#5246; #Expected[1] := 16#0001;
+   #Expected[2] := 16#0001; #Expected[3] := 16#0040;
+   #Expected[4] := 16#0000; #Expected[5] := 16#0040;
+   #Expected[6] := 16#0000; #Expected[7] := 16#0001;
+   #Expected[8] := 16#89AB; #Expected[9] := 16#CDEF;
+   #Expected[10] := 16#01FF; #Expected[11] := 16#0000;
+   #Expected[12] := 16#0000; #Expected[13] := 16#00FA;
+   #Expected[14] := 16#0000; #Expected[15] := 16#01F4;
+   #Expected[16] := 16#0000; #Expected[17] := 16#0064;
+   #Expected[18] := 16#0000; #Expected[19] := 16#01F4;
+   #Expected[20] := 16#0000; #Expected[21] := 16#1388;
+   #Expected[22] := 16#0000; #Expected[23] := 16#01F4;
+   #Expected[24] := 16#0000; #Expected[25] := 16#0000;
+   #Expected[26] := 16#4000; #Expected[27] := 16#0000;
+   #Expected[28] := 16#3F80; #Expected[29] := 16#0000;
+   #Expected[30] := 16#3F19; #Expected[31] := 16#999A;
+   #Expected[32] := 16#3F00; #Expected[33] := 16#0000;
+   #Expected[34] := 16#3FA0; #Expected[35] := 16#0000;
+   #Expected[36] := 16#3ECC; #Expected[37] := 16#CCCD;
+   #Expected[38] := 16#3F80; #Expected[39] := 16#0000;
+   #Expected[40] := 16#4020; #Expected[41] := 16#0000;
+   #Expected[42] := 16#0000; #Expected[43] := 16#0001;
+   #Expected[44] := 16#1234; #Expected[45] := 16#5678;
+   #Expected[46] := 16#0001;
+   FOR #Index := 47 TO 59 DO
+      #Expected[#Index] := 16#0000;
+   END_FOR;
+   #Expected[60] := 16#4B76; #Expected[61] := 16#4F17;
+   #Expected[62] := 16#0000; #Expected[63] := 16#0040;
+
+   #Match := #ActualCrc = 16#4B764F17;
+   FOR #Index := 0 TO 63 DO
+      IF #Frame[#Index] <> #Expected[#Index] THEN
+         #Match := FALSE;
+      END_IF;
+   END_FOR;
+   #FC_TestActiveConfigVector := #Match;
+END_FUNCTION
