@@ -17,6 +17,12 @@ bitleri
 [`ACTIVE_CONFIG_PHYSICAL_ACCEPTANCE_2026-08-24.md`](ACTIVE_CONFIG_PHYSICAL_ACCEPTANCE_2026-08-24.md)
 belgesinde kayıtlıdır.
 
+`PLC_STATE` publisher'ın üç ardışık salt-okunur FC03 örneği, sabit PLC
+session'ı, ilerleyen snapshot/heartbeat/monotonic sayaçları, ham register'ları
+ve güvenli G16-kapalı durumu
+[`PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md`](PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md)
+belgesinde kayıtlıdır.
+
 Bu belge PLC Codex'i için Ana Proje Codex'i tarafından hazırlanmıştır. Kaynak
 otorite
 `rover-core-ros2/agent/local-metric-map@854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
