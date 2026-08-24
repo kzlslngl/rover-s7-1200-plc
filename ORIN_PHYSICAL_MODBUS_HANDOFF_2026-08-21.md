@@ -23,6 +23,11 @@ ve güvenli G16-kapalı durumu
 [`PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md`](PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md)
 belgesinde kayıtlıdır.
 
+PLC, ESP ve G16 açıkken `G16_STATUS` publisher'ın canlı decoder/SBUS
+sayaçları, CRC, ham kanalları ve kapalı calibration/link/RSSI validity bitleri
+[`G16_STATUS_PHYSICAL_ACCEPTANCE_2026-08-24.md`](G16_STATUS_PHYSICAL_ACCEPTANCE_2026-08-24.md)
+belgesinde kayıtlıdır.
+
 Normal PLC power restartı, PLC session `4 -> 5`, eski command snapshot'ın tek
 seferlik replay reddi ve taze sayaç + bilinçli re-arm recovery sonucu
 [`PLC_RESTART_REPLAY_PHYSICAL_ACCEPTANCE_2026-08-24.md`](PLC_RESTART_REPLAY_PHYSICAL_ACCEPTANCE_2026-08-24.md)
@@ -139,31 +144,38 @@ PLC tarafında:
 - watch table/HMI akışında `FALSE -> TRUE -> FALSE` kenarını görünür yapmalı;
 - bu girişi Orin command Modbus payload'una taşımamalı.
 
-### P1 — Aktif limitlerin yayınlanması
+### P1 — Aktif limitlerin ROS tarafından tüketilmesi
 
 Fiziksel test, Orin launch parametresi ile PLC commissioning limiti farklıysa
 geçerli command snapshot'ın reject `10` aldığını gösterdi. `ACTIVE_CONFIG`
-publisher tamamlandığında Orin:
+publisher artık canlıdır ve salt-okunur fiziksel kabulden geçmiştir. Mevcut
+`ConfigFlags=0x0006`, yalnız command ve G16 timeout validity bitlerini açar;
+mekanik/configured bitleri bilinçli olarak kapalıdır. Orin:
 
 - PLC'nin etkin limitlerini salt-okunur almalı;
 - kendi gönderdiği limitlerin PLC üst sınırını aşmadığını doğrulamalı;
 - `ACTIVE_CONFIG_VALID=0` iken AUTO'yu açmamalı.
 
-Mevcut `ACTIVE_CONFIG` bloğu canlı FC03 okumada sıfırdır; bu publisher hâlâ
-tamamlanmalıdır.
+Ham değerler ve acceptance sonucu
+`ACTIVE_CONFIG_PHYSICAL_ACCEPTANCE_2026-08-24.md` belgesindedir. Kalan iş PLC
+publisher değil, aynı session'da ROS consumer/cache ve AUTO config kapısıdır.
 
-### P2 — Diagnostics görünürlüğü
+### P2 — Diagnostics'in ROS/UI görünürlüğü
 
 ROS acceptance takipçisi artık kritik PLC reject reason'ını accepted sequence
-henüz sıfırken de acknowledgement timeout'tan önce raporlar. PLC tarafında
-`PLC_DIAGNOSTICS` publisher tamamlanarak en az şu alanlar canlı yapılmalıdır:
+henüz sıfırken de acknowledgement timeout'tan önce raporlar.
+`PLC_DIAGNOSTICS` publisher tamamlandı ve fiziksel kabulden geçti. Command,
+timeout, ESP, G16 ve scan sayaçları canlıdır. Kalan işler:
 
-- command accept/reject sayaçları;
-- son reject reason;
-- heartbeat/command timeout sayaçları;
-- session/re-arm olayları;
-- output write violation;
-- transport ve scan diagnostics.
+- ROS köprüsünün aynı TCP session'da bloğu okuyup typed diagnostics/UI olarak
+  yayımlaması;
+- command accept/reject sayaçları, son reject, timeout ve session/re-arm
+  olaylarının ROS/UI'da görünür yapılması;
+- PLC output-write-violation detector/count/flag uygulamasının tamamlanması ve
+  enerjisiz kontrollü enjeksiyon testi.
+
+Ham diagnostics ve acceptance sonucu
+`PLC_DIAGNOSTICS_PHYSICAL_ACCEPTANCE_2026-08-21.md` belgesindedir.
 
 ## 4. Korunacak güvenlik sonucu
 
