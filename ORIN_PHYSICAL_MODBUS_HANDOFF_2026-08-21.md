@@ -23,6 +23,11 @@ ve güvenli G16-kapalı durumu
 [`PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md`](PLC_STATE_PHYSICAL_ACCEPTANCE_2026-08-24.md)
 belgesinde kayıtlıdır.
 
+Normal PLC power restartı, PLC session `4 -> 5`, eski command snapshot'ın tek
+seferlik replay reddi ve taze sayaç + bilinçli re-arm recovery sonucu
+[`PLC_RESTART_REPLAY_PHYSICAL_ACCEPTANCE_2026-08-24.md`](PLC_RESTART_REPLAY_PHYSICAL_ACCEPTANCE_2026-08-24.md)
+belgesinde kayıtlıdır.
+
 Bu belge PLC Codex'i için Ana Proje Codex'i tarafından hazırlanmıştır. Kaynak
 otorite
 `rover-core-ros2/agent/local-metric-map@854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
