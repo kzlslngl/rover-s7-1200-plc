@@ -18,7 +18,8 @@ firmware depolarından bağımsız sürümlemek içindir.
 
 Protokolün ana otoritesi `rover_core_ros2` deposundadır:
 
-- Referans commit: `66f6bde8b457ff8ef04ed045184f519dc34e5ef2`
+- Referans commit: `854fee6f67ad3cb37f526c84fbcf79cdcacf10fa`
+  (`agent/local-metric-map`)
 - İnsan-okunur sözleşme:
   `docs/PLC_ORIN_G16_HABERLESME_SOZLESMESI.md`
 - Makine-okunur register şeması:
@@ -30,6 +31,33 @@ Protokolün ana otoritesi `rover_core_ros2` deposundadır:
 
 G16 gateway firmware:
 [kzlslngl/rover-g16-gateway-firmware](https://github.com/kzlslngl/rover-g16-gateway-firmware)
+
+## PLC Codex başlangıç sırası
+
+PC'de bu depo için açılacak PLC geliştirme görevi işe şu sırayla başlamalıdır:
+
+1. [`DECISIONS.md`](DECISIONS.md): sistem güvenliği, wire sözleşmesi ve PLC
+   mimari sınırları;
+2. [`PLC_INTEGRATION_GUIDE.md`](PLC_INTEGRATION_GUIDE.md): ESP gateway
+   bağlantısı, tam register haritası, CRC vektörü ve HIL kabul adımları;
+3. [`ORIN_PLC_DB_TAG_CONTRACT.md`](ORIN_PLC_DB_TAG_CONTRACT.md): Orin–PLC
+   raw/typed DB ayrımı, sembolik tag adları ve publish/validation akışı;
+4. [`MAIN_PROTOCOL_HANDOFF_CABA72C.md`](MAIN_PROTOCOL_HANDOFF_CABA72C.md):
+   ana projede kapanan bitfield, diagnostics/config payload, test vektörü ve
+   VM–PLC bench kabul kapıları;
+5. [`PLC_APPLICATION_REVIEW_2026-08-21.md`](PLC_APPLICATION_REVIEW_2026-08-21.md):
+   canlı VM–PLC FC03 sonucu ve uygulama dalında kapanması gereken bulgular;
+6. [`ORIN_PHYSICAL_MODBUS_HANDOFF_2026-08-21.md`](ORIN_PHYSICAL_MODBUS_HANDOFF_2026-08-21.md):
+   üretim ROS bridge ile tamamlanan fiziksel FC16/FC03, session re-arm,
+   payload-limit ve accepted-sequence bench sonucu;
+7. TIA Portal sürümü, CPU firmware'i ve gerçek ağ profilini kaydetme;
+8. fiziksel çıkış üretmeden UDT/DB, endian/CRC yardımcıları ve snapshot
+   validator geliştirme.
+
+Bu depodaki **PLC Codex'i** TIA/SCL uygulamasını yazan ve PC üzerinde
+derleme/test kanıtı üreten taraftır. Belgelerde kendisini tanıtan **Ana Proje
+Codex'i** ise `rover-core-ros2` kaynaklı sistem sözleşmesini denetleyen,
+yalnız Markdown bulgusu yazan ayrı roldür.
 
 > Offset, endian, CRC, alan anlamı veya güvenlik semantiği bu depoda bağımsız
 > değiştirilmez. Önce ana protokol sözleşmesi sürümlenir, ardından PLC ve
