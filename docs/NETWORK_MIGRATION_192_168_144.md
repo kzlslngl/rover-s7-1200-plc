@@ -1,7 +1,7 @@
 # 192.168.144.0/24 Ortak Araç Ağına Geçiş
 
-Durum: planlandı; cihaz bazında devreye alma ve kabul testleri tamamlanmadan
-eski `192.168.2.0/24` bench ağı geçerli referanstır.
+Durum: **fiziksel kabul tamamlandı (27 Ağustos 2026)**. Ortak araç ağı
+`192.168.144.0/24` olarak devreye alınmıştır.
 
 ## Amaç
 
@@ -63,5 +63,33 @@ G16 veya kamera erişimi için gerekli değildir.
 ## Tarihsel kanıtlar
 
 Önceki fiziksel kabul belgelerindeki `192.168.2.x` adresleri test anındaki
-tarihsel kanıtlardır ve değiştirilmemelidir. Yeni ağ kabulü tamamlandığında ayrı
-bir fiziksel kabul belgesi eklenmelidir.
+tarihsel kanıtlardır ve değiştirilmemelidir. Yeni ağın ayrıntılı kabul kanıtı
+ana ROS deposunda tutulur; sonucu aşağıda özetlenmiştir.
+
+## Fiziksel kabul sonucu — 27 Ağustos 2026
+
+Ana proje Codex'i tarafından VM–PLC–ESP–G16–kamera zinciri yeni ağda fiziksel
+olarak doğrulandı:
+
+- PLC hedefi `192.168.144.100:502`, Modbus Unit ID `1`;
+- PLC session `9`, yeni Orin session `2070343649`;
+- temiz re-arm kabul edildi, command link `healthy` oldu;
+- son reject `NONE_ACCEPTED`, sayaçlar ilerledi;
+- hız hedefi ve okunan hız `0.0 m/s` kaldı;
+- fault/interlock görülmedi ve AUTO gönderilmedi;
+- üç VM servisi aktif, systemd testleri `3/3` geçti;
+- PLC–ESP–G16 ve kamera aynı `192.168.144.0/24` switch ağında çalıştı.
+
+Ana ROS kabul kanıtı:
+
+- depo/dal: `rover-core-ros2`, `agent/local-metric-map`;
+- commit: `80febf3`;
+- belge: `docs/VM_144_NETWORK_PHYSICAL_ACCEPTANCE_2026-08-27.md`.
+
+Re-arm çevresinde görülen iki kısa ACK/stale geçişi kendiliğinden toparlandı ve
+ana kabul belgesinde kanıt olarak tutuldu.
+
+Geçerli G16 nedeniyle PLC'nin `MANUAL / MANUAL` kalması mevcut bağımsız manuel
+otorite tasarımına uygundur. Orin'in `SAFE_DISABLED` isteği manuel otoriteyi
+zorla bastırmaz. Bu nedenle mekanik/aktüatör devreye alma tamamlanana kadar
+fiziksel drive enerjisi kapalı veya güvenli biçimde inhibit edilmiş tutulmalıdır.
